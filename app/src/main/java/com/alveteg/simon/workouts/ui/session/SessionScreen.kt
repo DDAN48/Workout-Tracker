@@ -472,6 +472,7 @@ fun SessionScreen(
               exerciseWrapper = exercise,
               editable = screenUnlocked,
               onEvent = viewModel::onEvent,
+              onDelete = { deleteExerciseDialog = it },
               onClick = { openExerciseBottomSheet = it },
               onSetClicked = { openSetBottomSheet = it })
           }

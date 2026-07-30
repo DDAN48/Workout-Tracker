@@ -2,6 +2,7 @@ package com.alveteg.simon.workouts.ui.session.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -47,6 +49,7 @@ fun ExerciseCard(
   editable: Boolean = false,
   onEvent: (Event) -> Unit = {},
   onSetClicked: (SetWrapper) -> Unit = {},
+  onDelete: (ExerciseWrapper) -> Unit = {},
   onClick: (ExerciseWrapper) -> Unit = {}
 ) {
   val exercise = exerciseWrapper.exercise
@@ -70,16 +73,27 @@ fun ExerciseCard(
     shape = MaterialTheme.shapes.medium
   ) {
     Column {
-      Text(
-        text = exercise.title,
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp)
-          .padding(top = 16.dp, bottom = 14.dp),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        style = MaterialTheme.typography.titleMedium.copy(fontFamily = ArchivoBlack)
-      )
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+          text = exercise.title,
+          modifier = Modifier
+            .weight(1f)
+            .padding(start = 16.dp)
+            .padding(top = 16.dp, bottom = 14.dp),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          style = MaterialTheme.typography.titleMedium.copy(fontFamily = ArchivoBlack)
+        )
+        ScaleVisibility(visible = editable) {
+          IconButton(onClick = { onDelete(exerciseWrapper) }) {
+            Icon(
+              imageVector = Icons.Outlined.Delete,
+              contentDescription = "Delete exercise",
+              tint = MaterialTheme.colorScheme.error
+            )
+          }
+        }
+      }
       HorizontalDivider()
       LazyRow(
         state = setListState,
