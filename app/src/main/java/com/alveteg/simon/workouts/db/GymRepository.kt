@@ -11,6 +11,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import androidx.room.withTransaction
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.util.UUID
+import com.alveteg.simon.workouts.ui.home.RecurrenceEditScope
+import com.alveteg.simon.workouts.ui.home.RecurrenceFrequency
 import timber.log.Timber
 import java.io.File
 import kotlin.collections.filter
@@ -97,20 +101,89 @@ class GymRepository(
 
   suspend fun insertSession(session: Session) = dao.insertSession(session)
 
+  suspend fun createScheduledSessions(
+    title: String,
+    start: LocalDateTime,
+    scheduledEnd: LocalDateTime,
+    colorArgb: Long,
+    frequency: RecurrenceFrequency,
+    interval: Int,
+    until: LocalDate?
+  ): Long = database.withTransaction {
+    val safeInterval = interval.coerceAtLeast(1)
+    val seriesId = if (frequency == RecurrenceFrequency.NONE) null else UUID.randomUUID().toString()
+    val finalDate = if (frequency == RecurrenceFrequency.NONE) start.toLocalDate() else until
+      ?: start.toLocalDate().plusYears(1)
+    var occurrenceStart = start
+    var occurrenceEnd = scheduledEnd
+    var firstId = 0L
+    do {
+      val id = dao.insertSession(
+        Session(
+          title = title,
+          start = occurrenceStart,
+          scheduledEnd = occurrenceEnd,
+          colorArgb = colorArgb,
+          recurrenceSeriesId = seriesId,
+          recurrenceFrequency = frequency.name,
+          recurrenceInterval = safeInterval,
+          recurrenceUntil = finalDate.toString()
+        )
+      )
+      if (firstId == 0L) firstId = id
+      when (frequency) {
+        RecurrenceFrequency.NONE -> break
+        RecurrenceFrequency.DAILY -> {
+          occurrenceStart = occurrenceStart.plusDays(safeInterval.toLong())
+          occurrenceEnd = occurrenceEnd.plusDays(safeInterval.toLong())
+        }
+        RecurrenceFrequency.WEEKLY -> {
+          occurrenceStart = occurrenceStart.plusWeeks(safeInterval.toLong())
+          occurrenceEnd = occurrenceEnd.plusWeeks(safeInterval.toLong())
+        }
+        RecurrenceFrequency.MONTHLY -> {
+          occurrenceStart = occurrenceStart.plusMonths(safeInterval.toLong())
+          occurrenceEnd = occurrenceEnd.plusMonths(safeInterval.toLong())
+        }
+      }
+    } while (!occurrenceStart.toLocalDate().isAfter(finalDate))
+    firstId
+  }
+
   suspend fun removeSession(session: Session) = dao.removeSession(session)
 
   suspend fun updateSession(session: Session) = dao.updateSession(session)
 
-  suspend fun moveSession(sessionId: Long, date: LocalDate) = database.withTransaction {
+  suspend fun moveSession(sessionId: Long, date: LocalDate, scope: RecurrenceEditScope) = database.withTransaction {
     val session = dao.getSessionById(sessionId)
     val days = date.toEpochDay() - session.start.toLocalDate().toEpochDay()
-    dao.updateSession(
-      session.copy(
-        start = session.start.plusDays(days),
-        scheduledEnd = session.scheduledEnd?.plusDays(days),
-        end = session.end?.plusDays(days)
+    val affected = sessionsForScope(session, scope)
+    affected.forEach { affectedSession ->
+      dao.updateSession(
+        affectedSession.copy(
+          start = affectedSession.start.plusDays(days),
+          scheduledEnd = affectedSession.scheduledEnd?.plusDays(days),
+          end = affectedSession.end?.plusDays(days),
+          recurrenceSeriesId = if (scope == RecurrenceEditScope.THIS) null else affectedSession.recurrenceSeriesId,
+          recurrenceFrequency = if (scope == RecurrenceEditScope.THIS) RecurrenceFrequency.NONE.name else affectedSession.recurrenceFrequency
+        )
       )
-    )
+    }
+  }
+
+  suspend fun deleteSession(sessionId: Long, scope: RecurrenceEditScope) = database.withTransaction {
+    val session = dao.getSessionById(sessionId)
+    sessionsForScope(session, scope).forEach { dao.removeSession(it) }
+  }
+
+  private fun sessionsForScope(session: Session, scope: RecurrenceEditScope): List<Session> {
+    val seriesId = session.recurrenceSeriesId ?: return listOf(session)
+    val series = dao.getSessionList().filter { it.recurrenceSeriesId == seriesId }
+    return when (scope) {
+      RecurrenceEditScope.THIS -> listOf(session)
+      RecurrenceEditScope.THIS_AND_FOLLOWING -> series.filter { !it.start.isBefore(session.start) }
+      RecurrenceEditScope.ALL -> series
+    }
   }
 
   suspend fun copySession(sessionId: Long, date: LocalDate): Long = database.withTransaction {
@@ -121,7 +194,11 @@ class GymRepository(
         sessionId = 0L,
         start = source.start.plusDays(days),
         scheduledEnd = source.scheduledEnd?.plusDays(days),
-        end = null
+        end = null,
+        recurrenceSeriesId = null,
+        recurrenceFrequency = RecurrenceFrequency.NONE.name,
+        recurrenceInterval = 1,
+        recurrenceUntil = null
       )
     )
     val sourceExercises = dao.getSessionExerciseList().filter { it.parentSessionId == sessionId }

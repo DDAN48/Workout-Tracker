@@ -8,6 +8,8 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +22,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -113,8 +118,10 @@ fun HomeScreen(
     NewSessionDialog(
       initialDate = date,
       onDismiss = { editorDate = null },
-      onSave = { title, selectedDate, start, end, color ->
-        viewModel.onEvent(HomeEvent.NewSession(title, selectedDate, start, end, color))
+      onSave = { title, selectedDate, start, end, color, frequency, interval, until ->
+        viewModel.onEvent(
+          HomeEvent.NewSession(title, selectedDate, start, end, color, frequency, interval, until)
+        )
         editorDate = null
       }
     )
@@ -128,8 +135,12 @@ fun HomeScreen(
         viewModel.onEvent(HomeEvent.CopySession(session.session.sessionId, date))
         actionSession = null
       },
-      onMove = { date ->
-        viewModel.onEvent(HomeEvent.MoveSession(session.session.sessionId, date))
+      onMove = { date, scope ->
+        viewModel.onEvent(HomeEvent.MoveSession(session.session.sessionId, date, scope))
+        actionSession = null
+      },
+      onDelete = { scope ->
+        viewModel.onEvent(HomeEvent.DeleteSession(session.session.sessionId, scope))
         actionSession = null
       }
     )
@@ -230,7 +241,10 @@ private fun CalendarTopBar(
   onViewMode: (CalendarViewMode) -> Unit,
   onSettings: () -> Unit
 ) {
-  Surface(shadowElevation = 2.dp) {
+  Surface(
+    modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
+    shadowElevation = 2.dp
+  ) {
     Column {
       Row(
         modifier = Modifier
@@ -554,10 +568,14 @@ private fun SessionActionsDialog(
   session: SessionWrapper,
   onDismiss: () -> Unit,
   onCopy: (LocalDate) -> Unit,
-  onMove: (LocalDate) -> Unit
+  onMove: (LocalDate, RecurrenceEditScope) -> Unit,
+  onDelete: (RecurrenceEditScope) -> Unit
 ) {
   val context = LocalContext.current
   val sourceDate = session.session.start.toLocalDate()
+  var action by remember { mutableStateOf<String?>(null) }
+  var scope by remember { mutableStateOf(RecurrenceEditScope.THIS) }
+  val isRecurring = session.session.recurrenceSeriesId != null
 
   fun selectDate(onDate: (LocalDate) -> Unit) {
     DatePickerDialog(
@@ -572,14 +590,43 @@ private fun SessionActionsDialog(
   AlertDialog(
     onDismissRequest = onDismiss,
     title = { Text(session.session.title.ifBlank { "Workout" }) },
-    text = { Text("Copy duplicates every exercise and set. Move keeps the original workout and changes its date.") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Copy duplicates every exercise and set. Move keeps the workout contents and changes its date.")
+        if (action != null && isRecurring) {
+          Text("Apply to", style = MaterialTheme.typography.labelLarge)
+          RecurrenceEditScope.entries.forEach { option ->
+            FilterChip(
+              selected = scope == option,
+              onClick = { scope = option },
+              label = {
+                Text(
+                  when (option) {
+                    RecurrenceEditScope.THIS -> "Only this session"
+                    RecurrenceEditScope.THIS_AND_FOLLOWING -> "This and following"
+                    RecurrenceEditScope.ALL -> "All sessions"
+                  }
+                )
+              }
+            )
+          }
+        }
+      }
+    },
     confirmButton = {
-      Button(onClick = { selectDate(onCopy) }) { Text("Copy") }
+      when (action) {
+        "MOVE" -> Button(onClick = { selectDate { onMove(it, scope) } }) { Text("Select date") }
+        "DELETE" -> Button(onClick = { onDelete(scope) }) { Text("Delete") }
+        else -> Button(onClick = { selectDate(onCopy) }) { Text("Copy") }
+      }
     },
     dismissButton = {
       Row {
-        TextButton(onClick = { selectDate(onMove) }) { Text("Move") }
-        TextButton(onClick = onDismiss) { Text("Cancel") }
+        if (action == null) {
+          TextButton(onClick = { action = "MOVE" }) { Text("Move") }
+          TextButton(onClick = { action = "DELETE" }) { Text("Delete") }
+        }
+        TextButton(onClick = { if (action == null) onDismiss() else action = null }) { Text("Cancel") }
       }
     }
   )
@@ -589,7 +636,7 @@ private fun SessionActionsDialog(
 private fun NewSessionDialog(
   initialDate: LocalDate,
   onDismiss: () -> Unit,
-  onSave: (String, LocalDate, LocalTime, LocalTime, Long) -> Unit
+  onSave: (String, LocalDate, LocalTime, LocalTime, Long, RecurrenceFrequency, Int, LocalDate?) -> Unit
 ) {
   val context = LocalContext.current
   var title by remember { mutableStateOf("") }
@@ -597,6 +644,9 @@ private fun NewSessionDialog(
   var start by remember { mutableStateOf(LocalTime.now().plusHours(1).withMinute(0).withSecond(0).withNano(0)) }
   var end by remember { mutableStateOf(start.plusHours(1)) }
   var selectedColor by remember { mutableStateOf(Session.DEFAULT_SESSION_COLOR) }
+  var frequency by remember { mutableStateOf(RecurrenceFrequency.NONE) }
+  var intervalText by remember { mutableStateOf("1") }
+  var recurrenceUntil by remember { mutableStateOf(initialDate.plusMonths(3)) }
   val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE, d MMM yyyy") }
   val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
@@ -604,7 +654,10 @@ private fun NewSessionDialog(
     onDismissRequest = onDismiss,
     title = { Text("Schedule workout") },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
         OutlinedTextField(
           value = title,
           onValueChange = { title = it },
@@ -653,10 +706,57 @@ private fun NewSessionDialog(
             )
           }
         }
+        Text("Repeat", style = MaterialTheme.typography.labelLarge)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+          RecurrenceFrequency.entries.forEach { option ->
+            FilterChip(
+              selected = frequency == option,
+              onClick = { frequency = option },
+              label = { Text(option.name.lowercase().replaceFirstChar { it.uppercase() }) },
+              modifier = Modifier.weight(1f)
+            )
+          }
+        }
+        if (frequency != RecurrenceFrequency.NONE) {
+          OutlinedTextField(
+            value = intervalText,
+            onValueChange = { intervalText = it.filter(Char::isDigit).take(3) },
+            label = { Text("Repeat every") },
+            supportingText = { Text(frequency.name.lowercase()) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+          )
+          OutlinedButton(
+            onClick = {
+              DatePickerDialog(
+                context,
+                { _, year, month, day -> recurrenceUntil = LocalDate.of(year, month + 1, day) },
+                recurrenceUntil.year,
+                recurrenceUntil.monthValue - 1,
+                recurrenceUntil.dayOfMonth
+              ).show()
+            },
+            modifier = Modifier.fillMaxWidth()
+          ) { Text("Repeat until ${recurrenceUntil.format(dateFormatter)}") }
+        }
       }
     },
     confirmButton = {
-      Button(onClick = { onSave(title, date, start, end, selectedColor) }) {
+      Button(onClick = {
+        onSave(
+          title,
+          date,
+          start,
+          end,
+          selectedColor,
+          frequency,
+          intervalText.toIntOrNull()?.coerceAtLeast(1) ?: 1,
+          recurrenceUntil.takeIf { frequency != RecurrenceFrequency.NONE }
+        )
+      }) {
         Text("Create")
       }
     },

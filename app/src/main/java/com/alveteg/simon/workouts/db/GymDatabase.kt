@@ -19,7 +19,7 @@ import com.alveteg.simon.workouts.utils.Converters
     SessionExercise::class,
     GymSet::class
   ],
-  version = 6,
+  version = 7,
   exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -120,6 +120,15 @@ abstract class GymDatabase : RoomDatabase() {
         db.execSQL(
           "ALTER TABLE sessions ADD COLUMN colorArgb INTEGER NOT NULL DEFAULT ${Session.DEFAULT_SESSION_COLOR}"
         )
+      }
+    }
+
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+      override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE sessions ADD COLUMN recurrenceSeriesId TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE sessions ADD COLUMN recurrenceFrequency TEXT NOT NULL DEFAULT 'NONE'")
+        db.execSQL("ALTER TABLE sessions ADD COLUMN recurrenceInterval INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE sessions ADD COLUMN recurrenceUntil TEXT DEFAULT NULL")
       }
     }
   }

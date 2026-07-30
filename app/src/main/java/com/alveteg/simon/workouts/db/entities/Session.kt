@@ -19,7 +19,13 @@ data class Session(
   val end: LocalDateTime? = null,
   val scheduledEnd: LocalDateTime? = null,
   @ColumnInfo(defaultValue = "4284960932")
-  val colorArgb: Long = DEFAULT_SESSION_COLOR
+  val colorArgb: Long = DEFAULT_SESSION_COLOR,
+  val recurrenceSeriesId: String? = null,
+  @ColumnInfo(defaultValue = "'NONE'")
+  val recurrenceFrequency: String = "NONE",
+  @ColumnInfo(defaultValue = "1")
+  val recurrenceInterval: Int = 1,
+  val recurrenceUntil: String? = null
 ) {
   companion object {
     const val DEFAULT_SESSION_COLOR: Long = 0xFF6750A4

@@ -35,7 +35,8 @@ object AppModule {
         GymDatabase.MIGRATION_TO_RPE,
         GymDatabase.MIGRATION_3_4,
         GymDatabase.MIGRATION_4_5,
-        GymDatabase.MIGRATION_5_6
+        GymDatabase.MIGRATION_5_6,
+        GymDatabase.MIGRATION_6_7
       )
       .addCallback(callback)
       .build()

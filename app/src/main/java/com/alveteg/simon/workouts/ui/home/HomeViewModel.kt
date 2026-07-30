@@ -108,27 +108,27 @@ class HomeViewModel @Inject constructor(
             val start = LocalDateTime.of(event.date, event.startTime)
             var scheduledEnd = LocalDateTime.of(event.date, event.endTime)
             if (!scheduledEnd.isAfter(start)) scheduledEnd = scheduledEnd.plusDays(1)
-            repo.insertSession(
-              Session(
-                title = event.title.trim(),
-                start = start,
-                scheduledEnd = scheduledEnd,
-                colorArgb = event.colorArgb
-              )
+            val sessionId = repo.createScheduledSessions(
+              title = event.title.trim(),
+              start = start,
+              scheduledEnd = scheduledEnd,
+              colorArgb = event.colorArgb,
+              frequency = event.recurrenceFrequency,
+              interval = event.recurrenceInterval,
+              until = event.recurrenceUntil
             )
-            val session = repo.getLastSession()
-            sendUiEvent(UiEvent.Navigate("${Routes.SESSION}/${session.sessionId}"))
+            sendUiEvent(UiEvent.Navigate("${Routes.SESSION}/$sessionId"))
 
-            val data = workDataOf("SESSION_ID" to session.sessionId)
+            val data = workDataOf("SESSION_ID" to sessionId)
 
             val reminderRequest = OneTimeWorkRequestBuilder<SessionReminderWorker>()
               .setInitialDelay(3, TimeUnit.HOURS)
               .setInputData(data)
-              .addTag("session_reminder_${session.sessionId}")
+              .addTag("session_reminder_$sessionId")
               .build()
 
             WorkManager.getInstance(application).enqueueUniqueWork(
-              "reminder_${session.sessionId}",
+              "reminder_$sessionId",
               ExistingWorkPolicy.REPLACE,
               reminderRequest
             )
@@ -145,7 +145,11 @@ class HomeViewModel @Inject constructor(
       }
 
       is HomeEvent.MoveSession -> {
-        viewModelScope.launch(Dispatchers.IO) { repo.moveSession(event.sessionId, event.date) }
+        viewModelScope.launch(Dispatchers.IO) { repo.moveSession(event.sessionId, event.date, event.scope) }
+      }
+
+      is HomeEvent.DeleteSession -> {
+        viewModelScope.launch(Dispatchers.IO) { repo.deleteSession(event.sessionId, event.scope) }
       }
 
       else -> Unit
