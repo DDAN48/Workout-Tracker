@@ -39,7 +39,9 @@ fun SessionCard(
   val muscleGroups = sessionWrapper.muscleGroups
   val muscleTitle by remember(sessionWrapper) {
     derivedStateOf {
-      if (muscleGroups.isNotEmpty()) muscleGroups[0].uppercase() else ""
+      session.title.ifBlank {
+        if (muscleGroups.isNotEmpty()) muscleGroups[0].uppercase() else "WORKOUT"
+      }
     }
   }
   val muscleSubtitle by remember(sessionWrapper) {
@@ -47,9 +49,7 @@ fun SessionCard(
       muscleGroups.drop(1).take(3).toString().drop(1).dropLast(1).uppercase()
     }
   }
-  val color by animateColorAsState(targetValue =
-    if (session.end == null) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer
-  )
+  val color by animateColorAsState(targetValue = Color(session.colorArgb))
 
   HomeContainer(
     onClick = { onClick() },

@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -100,7 +101,17 @@ class HomeViewModel @Inject constructor(
       is HomeEvent.NewSession -> {
         viewModelScope.launch {
           withContext(Dispatchers.IO) {
-            repo.insertSession(Session())
+            val start = LocalDateTime.of(event.date, event.startTime)
+            var scheduledEnd = LocalDateTime.of(event.date, event.endTime)
+            if (!scheduledEnd.isAfter(start)) scheduledEnd = scheduledEnd.plusDays(1)
+            repo.insertSession(
+              Session(
+                title = event.title.trim(),
+                start = start,
+                scheduledEnd = scheduledEnd,
+                colorArgb = event.colorArgb
+              )
+            )
             val session = repo.getLastSession()
             sendUiEvent(UiEvent.Navigate("${Routes.SESSION}/${session.sessionId}"))
 

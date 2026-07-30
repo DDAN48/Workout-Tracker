@@ -14,10 +14,13 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -60,6 +63,7 @@ fun SessionHeader(
   onDeleteSession: () -> Unit,
   onEndTime: () -> Unit,
   onStartTime: () -> Unit,
+  onColorClick: () -> Unit,
   onToggleEdit: () -> Unit,
   timerState: TimerState,
   timerVisible: Boolean,
@@ -69,9 +73,11 @@ fun SessionHeader(
   modifier: Modifier = Modifier
 ) {
 
-  val muscleTitle by remember(muscleGroups) {
+  val muscleTitle by remember(sessionWrapper, muscleGroups) {
     derivedStateOf {
-      muscleGroups.take(1).joinToString().uppercase()
+      sessionWrapper.session.title.ifBlank {
+        muscleGroups.take(1).joinToString().uppercase()
+      }
     }
   }
   val muscleSubtitle by remember(muscleGroups) {
@@ -178,6 +184,7 @@ fun SessionHeader(
     Row(
       modifier = modifier
         .fillMaxWidth()
+        .horizontalScroll(rememberScrollState())
         .padding(top = 4.dp, bottom = 16.dp)
         .padding(horizontal = 6.dp),
     ) {
@@ -215,9 +222,24 @@ fun SessionHeader(
       }
       Spacer(
         modifier = Modifier
-          .weight(1f)
-          .padding(end = 8.dp)
+          .width(8.dp)
       )
+      ScaleVisibility(visible = screenUnlocked) {
+        HeaderItem(
+          modifier = Modifier
+            .padding(end = 8.dp)
+            .width(42.dp),
+          color = Color(sessionWrapper.session.colorArgb),
+          onClick = onColorClick
+        ) {
+          Icon(
+            imageVector = Icons.Outlined.Palette,
+            contentDescription = "Change session color.",
+            tint = Color.White,
+            modifier = Modifier.size(18.dp)
+          )
+        }
+      }
       ScaleVisibility(visible = screenUnlocked) {
         HeaderItem(
           modifier = Modifier
@@ -242,7 +264,7 @@ fun SessionHeader(
         }
       )
       TimeCard(
-        time = sessionWrapper.session.end,
+        time = sessionWrapper.session.end ?: sessionWrapper.session.scheduledEnd,
         onClick = {
           if (screenUnlocked) onEndTime() else triggerShakeAnimation()
         }

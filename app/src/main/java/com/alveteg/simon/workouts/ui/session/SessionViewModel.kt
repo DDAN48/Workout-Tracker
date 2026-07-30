@@ -163,16 +163,34 @@ class SessionViewModel @Inject constructor(
       is SessionEvent.SetStartTime -> {
         val session = _session.value
         val newStartTime = LocalDateTime.of(session.start.toLocalDate(), event.newTime)
+        val startDifference = java.time.Duration.between(session.start, newStartTime)
         viewModelScope.launch {
           repo.updateSession(
             session.copy(
-              start = newStartTime
+              start = newStartTime,
+              scheduledEnd = session.scheduledEnd?.plus(startDifference)
             )
           )
           withContext(Dispatchers.IO) {
             _session.value = repo.getSessionById(_session.value.sessionId)
           }
         }
+      }
+
+      is SessionEvent.SetDate -> {
+        val session = _session.value
+        val dayDifference = event.newDate.toEpochDay() - session.start.toLocalDate().toEpochDay()
+        updateSession(
+          session.copy(
+            start = session.start.plusDays(dayDifference),
+            scheduledEnd = session.scheduledEnd?.plusDays(dayDifference),
+            end = session.end?.plusDays(dayDifference)
+          )
+        )
+      }
+
+      is SessionEvent.SetColor -> {
+        updateSession(_session.value.copy(colorArgb = event.colorArgb))
       }
 
       is SessionEvent.ReorderExercises -> {
@@ -191,6 +209,15 @@ class SessionViewModel @Inject constructor(
       }
 
       else -> Unit
+    }
+  }
+
+  private fun updateSession(session: Session) {
+    viewModelScope.launch {
+      repo.updateSession(session)
+      withContext(Dispatchers.IO) {
+        _session.value = repo.getSessionById(session.sessionId)
+      }
     }
   }
 

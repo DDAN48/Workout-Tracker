@@ -1,6 +1,7 @@
 package com.alveteg.simon.workouts.ui.session
 
 import android.content.BroadcastReceiver
+import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -10,6 +11,7 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -82,6 +84,9 @@ fun SessionScreen(
 ) {
   val uriHandler = LocalUriHandler.current
   val context = LocalContext.current
+  val sessionColors = remember {
+    listOf(0xFF6750A4, 0xFF386A20, 0xFF006A6A, 0xFF8C4A60, 0xFF8B5000, 0xFF984061, 0xFF3F5F90, 0xFF755B00)
+  }
 
   var openSetBottomSheet by rememberSaveable { mutableStateOf<SetWrapper?>(null) }
   var openExerciseBottomSheet by rememberSaveable { mutableStateOf<ExerciseWrapper?>(null) }
@@ -340,7 +345,19 @@ fun SessionScreen(
               .sharedElement(
                 sharedContentState = sharedTransitionScope.rememberSharedContentState(key = "session-date-${sessionWrapper.session.sessionId}"),
                 animatedVisibilityScope = animatedVisibilityScope
-              ),
+              )
+              .clickable(enabled = screenUnlocked) {
+                val current = sessionWrapper.session.start.toLocalDate()
+                DatePickerDialog(
+                  context,
+                  { _, year, month, day ->
+                    viewModel.onEvent(SessionEvent.SetDate(java.time.LocalDate.of(year, month + 1, day)))
+                  },
+                  current.year,
+                  current.monthValue - 1,
+                  current.dayOfMonth
+                ).show()
+              },
             titleModifier = Modifier
               .sharedBounds(
                 sharedContentState = sharedTransitionScope.rememberSharedContentState(key = "session-title-${sessionWrapper.session.sessionId}"),
@@ -352,6 +369,10 @@ fun SessionScreen(
             onDeleteSession = { deleteSessionDialog = true },
             onEndTime = { endTimeDialogState.show() },
             onStartTime = { startTimeDialogState.show() },
+            onColorClick = {
+              val currentIndex = sessionColors.indexOf(sessionWrapper.session.colorArgb)
+              viewModel.onEvent(SessionEvent.SetColor(sessionColors[(currentIndex + 1).mod(sessionColors.size)]))
+            },
             timerState = timerState,
             timerVisible = timerVisible,
             onTimerButtonClick = { timerVisible = !timerVisible },

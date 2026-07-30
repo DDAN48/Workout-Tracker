@@ -1,6 +1,7 @@
 package com.alveteg.simon.workouts.db.entities
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.PrimaryKey
 import java.time.LocalDateTime
 
@@ -12,6 +13,15 @@ import java.time.LocalDateTime
 data class Session(
   @PrimaryKey(autoGenerate = true)
   val sessionId: Long = 0L,
+  @ColumnInfo(defaultValue = "''")
+  val title: String = "",
   val start: LocalDateTime = LocalDateTime.now(),
-  val end: LocalDateTime? = null
-)
+  val end: LocalDateTime? = null,
+  val scheduledEnd: LocalDateTime? = null,
+  @ColumnInfo(defaultValue = "4284960932")
+  val colorArgb: Long = DEFAULT_SESSION_COLOR
+) {
+  companion object {
+    const val DEFAULT_SESSION_COLOR: Long = 0xFF6750A4
+  }
+}

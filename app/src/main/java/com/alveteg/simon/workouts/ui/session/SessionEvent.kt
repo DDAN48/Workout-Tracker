@@ -5,6 +5,7 @@ import com.alveteg.simon.workouts.db.entities.GymSet
 import com.alveteg.simon.workouts.ui.ExerciseWrapper
 import com.alveteg.simon.workouts.utils.Event
 import java.time.LocalTime
+import java.time.LocalDate
 
 sealed class SessionEvent : Event {
   data class ChangeSet(val updatedSet: GymSet) : SessionEvent()
@@ -23,4 +24,6 @@ sealed class SessionEvent : Event {
 
   data class SetStartTime(val newTime: LocalTime) : SessionEvent()
   data class SetEndTime(val newTime: LocalTime) : SessionEvent()
+  data class SetDate(val newDate: LocalDate) : SessionEvent()
+  data class SetColor(val colorArgb: Long) : SessionEvent()
 }
