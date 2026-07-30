@@ -125,7 +125,8 @@ class HomeViewModel @Inject constructor(
               colorArgb = event.colorArgb,
               frequency = event.recurrenceFrequency,
               interval = event.recurrenceInterval,
-              until = event.recurrenceUntil
+              until = event.recurrenceUntil,
+              calendarId = event.calendarId
             )
             sendUiEvent(UiEvent.Navigate("${Routes.SESSION}/$sessionId"))
 
@@ -166,6 +167,9 @@ class HomeViewModel @Inject constructor(
       }
       is HomeEvent.ToggleCalendar -> viewModelScope.launch(Dispatchers.IO) {
         repo.toggleWorkoutCalendar(event.calendar)
+      }
+      is HomeEvent.DeleteCalendar -> viewModelScope.launch(Dispatchers.IO) {
+        repo.deleteWorkoutCalendar(event.calendar)
       }
 
       else -> Unit

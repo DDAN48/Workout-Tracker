@@ -54,6 +54,12 @@ class GymRepository(
     dao.insertWorkoutCalendar(WorkoutCalendar(name = name, colorArgb = color))
   suspend fun toggleWorkoutCalendar(calendar: WorkoutCalendar) =
     dao.updateWorkoutCalendar(calendar.copy(visible = !calendar.visible))
+  suspend fun deleteWorkoutCalendar(calendar: WorkoutCalendar) = database.withTransaction {
+    if (calendar.calendarId != 1L) {
+      dao.moveSessionsToDefaultCalendar(calendar.calendarId)
+      dao.deleteWorkoutCalendar(calendar)
+    }
+  }
 
   fun getAllSets() = dao.getAllSets()
   fun getAllExercises() = dao.getAllExercises()
@@ -124,7 +130,8 @@ class GymRepository(
     colorArgb: Long,
     frequency: RecurrenceFrequency,
     interval: Int,
-    until: LocalDate?
+    until: LocalDate?,
+    calendarId: Long
   ): Long = database.withTransaction {
     val safeInterval = interval.coerceAtLeast(1)
     val seriesId = if (frequency == RecurrenceFrequency.NONE) null else UUID.randomUUID().toString()
@@ -143,7 +150,8 @@ class GymRepository(
           recurrenceSeriesId = seriesId,
           recurrenceFrequency = frequency.name,
           recurrenceInterval = safeInterval,
-          recurrenceUntil = finalDate.toString()
+          recurrenceUntil = finalDate.toString(),
+          calendarId = calendarId
         )
       )
       if (firstId == 0L) firstId = id

@@ -16,6 +16,12 @@ interface GymDAO {
   @Update
   suspend fun updateWorkoutCalendar(calendar: WorkoutCalendar)
 
+  @Query("UPDATE sessions SET calendarId = 1 WHERE calendarId = :calendarId")
+  suspend fun moveSessionsToDefaultCalendar(calendarId: Long)
+
+  @Delete
+  suspend fun deleteWorkoutCalendar(calendar: WorkoutCalendar)
+
   @Query("SELECT * FROM sessions WHERE sessionId = :sessionId")
   fun getSessionById(sessionId: Long): Session
 

@@ -86,6 +86,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.alveteg.simon.workouts.db.entities.Session
+import com.alveteg.simon.workouts.db.entities.WorkoutCalendar
 import com.alveteg.simon.workouts.ui.SessionWrapper
 import com.alveteg.simon.workouts.utils.UiEvent
 import java.time.DayOfWeek
@@ -109,7 +110,7 @@ private val sessionColors = listOf(
   0xFF755B00
 )
 
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
   onNavigate: (UiEvent.Navigate) -> Unit,
@@ -129,6 +130,8 @@ fun HomeScreen(
   var focusedDateValue by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
   var editorDate by remember { mutableStateOf<LocalDate?>(null) }
   var actionSession by remember { mutableStateOf<SessionWrapper?>(null) }
+  var selectedCalendarId by rememberSaveable { mutableStateOf(1L) }
+  var calendarToDelete by remember { mutableStateOf<WorkoutCalendar?>(null) }
   val month = YearMonth.parse(visibleMonth)
   val focusedDate = LocalDate.parse(focusedDateValue)
 
@@ -144,10 +147,26 @@ fun HomeScreen(
       onDismiss = { editorDate = null },
       onSave = { title, selectedDate, start, end, color, frequency, interval, until ->
         viewModel.onEvent(
-          HomeEvent.NewSession(title, selectedDate, start, end, color, frequency, interval, until)
+          HomeEvent.NewSession(title, selectedDate, start, end, color, frequency, interval, until, selectedCalendarId)
         )
         editorDate = null
       }
+    )
+  }
+
+  calendarToDelete?.let { calendar ->
+    AlertDialog(
+      onDismissRequest = { calendarToDelete = null },
+      title = { Text("Delete ${calendar.name}?") },
+      text = { Text("Its workouts will be moved to the default Workouts calendar.") },
+      confirmButton = {
+        Button(onClick = {
+          viewModel.onEvent(HomeEvent.DeleteCalendar(calendar))
+          if (selectedCalendarId == calendar.calendarId) selectedCalendarId = 1L
+          calendarToDelete = null
+        }) { Text("Delete") }
+      },
+      dismissButton = { TextButton(onClick = { calendarToDelete = null }) { Text("Cancel") } }
     )
   }
 
@@ -199,17 +218,27 @@ fun HomeScreen(
         HorizontalDivider()
         Text("Workout calendars", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(16.dp))
         calendars.forEach { calendar ->
-          NavigationDrawerItem(
-            label = { Text(calendar.name) },
-            icon = {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(28.dp))
+              .background(if (selectedCalendarId == calendar.calendarId) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+              .combinedClickable(
+                onClick = { selectedCalendarId = calendar.calendarId },
+                onLongClick = { if (calendar.calendarId != 1L) calendarToDelete = calendar }
+              )
+              .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
               Box(
                 modifier = Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)).background(Color(calendar.colorArgb)),
                 contentAlignment = Alignment.Center
               ) { if (calendar.visible) Text("✓", color = Color.White) }
-            },
-            selected = calendar.visible,
-            onClick = { viewModel.onEvent(HomeEvent.ToggleCalendar(calendar)) }
-          )
+            Text(calendar.name, modifier = Modifier.weight(1f).padding(start = 16.dp))
+            TextButton(onClick = { viewModel.onEvent(HomeEvent.ToggleCalendar(calendar)) }) {
+              Text(if (calendar.visible) "Hide" else "Show")
+            }
+          }
         }
         NavigationDrawerItem(label = { Text("+ Add calendar") }, selected = false, onClick = {
           viewModel.onEvent(HomeEvent.AddCalendar("Calendar ${calendars.size + 1}", sessionColors[calendars.size % sessionColors.size]))
