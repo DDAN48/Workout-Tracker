@@ -72,6 +72,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 import timber.log.Timber
 import java.time.LocalTime
 import com.alveteg.simon.workouts.ui.home.RecurrenceEditScope
+import com.alveteg.simon.workouts.ui.home.RecurrenceFrequency
 
 @OptIn(
   ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class,
@@ -181,6 +182,45 @@ fun SessionScreen(
 
   var deleteSessionDialog by remember { mutableStateOf(false) }
   var saveRecurringDialog by remember { mutableStateOf(false) }
+  var recurrenceDialog by remember { mutableStateOf(false) }
+  var recurrenceFrequency by remember(sessionWrapper.session.recurrenceFrequency) {
+    mutableStateOf(runCatching { RecurrenceFrequency.valueOf(sessionWrapper.session.recurrenceFrequency) }.getOrDefault(RecurrenceFrequency.NONE))
+  }
+  var recurrenceInterval by remember(sessionWrapper.session.recurrenceInterval) {
+    mutableStateOf(sessionWrapper.session.recurrenceInterval.toString())
+  }
+  if (recurrenceDialog) {
+    androidx.compose.material3.AlertDialog(
+      onDismissRequest = { recurrenceDialog = false },
+      title = { Text("Workout recurrence") },
+      text = {
+        androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+          RecurrenceFrequency.entries.forEach { option ->
+            androidx.compose.material3.FilterChip(
+              selected = recurrenceFrequency == option,
+              onClick = { recurrenceFrequency = option },
+              label = { Text(option.name.lowercase().replaceFirstChar { it.uppercase() }) }
+            )
+          }
+          if (recurrenceFrequency != RecurrenceFrequency.NONE) {
+            androidx.compose.material3.OutlinedTextField(
+              value = recurrenceInterval,
+              onValueChange = { recurrenceInterval = it.filter(Char::isDigit).take(3) },
+              label = { Text("Repeat every") },
+              singleLine = true
+            )
+          }
+        }
+      },
+      confirmButton = {
+        androidx.compose.material3.TextButton(onClick = {
+          viewModel.onEvent(SessionEvent.SetRecurrence(recurrenceFrequency, recurrenceInterval.toIntOrNull() ?: 1))
+          recurrenceDialog = false
+        }) { Text("Apply") }
+      },
+      dismissButton = { androidx.compose.material3.TextButton(onClick = { recurrenceDialog = false }) { Text("Cancel") } }
+    )
+  }
   if (saveRecurringDialog) {
     androidx.compose.material3.AlertDialog(
       onDismissRequest = { saveRecurringDialog = false },
@@ -189,7 +229,6 @@ fun SessionScreen(
       confirmButton = {
         androidx.compose.material3.TextButton(onClick = {
           viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.ALL))
-          if (sessionWrapper.session.end == null) viewModel.onEvent(SessionEvent.SetEndTime(LocalTime.now()))
           saveRecurringDialog = false
           screenUnlocked = false
         }) { Text("Entire series") }
@@ -198,13 +237,11 @@ fun SessionScreen(
         androidx.compose.foundation.layout.Column {
           androidx.compose.material3.TextButton(onClick = {
             viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.THIS_AND_FOLLOWING))
-            if (sessionWrapper.session.end == null) viewModel.onEvent(SessionEvent.SetEndTime(LocalTime.now()))
             saveRecurringDialog = false
             screenUnlocked = false
           }) { Text("This and following") }
           androidx.compose.material3.TextButton(onClick = {
             viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.THIS))
-            if (sessionWrapper.session.end == null) viewModel.onEvent(SessionEvent.SetEndTime(LocalTime.now()))
             saveRecurringDialog = false
             screenUnlocked = false
           }) { Text("Only this session") }
@@ -406,13 +443,17 @@ fun SessionScreen(
               val currentIndex = sessionColors.indexOf(sessionWrapper.session.colorArgb)
               viewModel.onEvent(SessionEvent.SetColor(sessionColors[(currentIndex + 1).mod(sessionColors.size)]))
             },
+            onRecurrenceClick = { recurrenceDialog = true },
             timerState = timerState,
             timerVisible = timerVisible,
             onTimerButtonClick = { timerVisible = !timerVisible },
             onToggleEdit = {
               if (!screenUnlocked) {
                 screenUnlocked = true
-              } else if (sessionWrapper.session.recurrenceSeriesId != null) {
+              } else if (
+                sessionWrapper.session.recurrenceSeriesId != null ||
+                sessionWrapper.session.recurrenceFrequency != RecurrenceFrequency.NONE.name
+              ) {
                 saveRecurringDialog = true
               } else if (sessionWrapper.session.end == null) {
                 endTimeDialogState.show()

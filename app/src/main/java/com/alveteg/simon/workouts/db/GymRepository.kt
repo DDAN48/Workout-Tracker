@@ -253,8 +253,30 @@ class GymRepository(
 
   suspend fun syncRecurringPlan(sessionId: Long, scope: RecurrenceEditScope) = database.withTransaction {
     if (scope == RecurrenceEditScope.THIS) return@withTransaction
-    val source = dao.getSessionById(sessionId)
-    val seriesId = source.recurrenceSeriesId ?: return@withTransaction
+    var source = dao.getSessionById(sessionId)
+    var seriesId = source.recurrenceSeriesId
+    if (seriesId == null) {
+      val frequency = runCatching { RecurrenceFrequency.valueOf(source.recurrenceFrequency) }
+        .getOrDefault(RecurrenceFrequency.NONE)
+      if (frequency == RecurrenceFrequency.NONE) return@withTransaction
+      seriesId = UUID.randomUUID().toString()
+      source = source.copy(recurrenceSeriesId = seriesId)
+      dao.updateSession(source)
+      val until = source.recurrenceUntil?.let(LocalDate::parse) ?: source.start.toLocalDate().plusYears(1)
+      var nextStart = nextOccurrence(source.start, frequency, source.recurrenceInterval)
+      val duration = source.scheduledEnd?.let { java.time.Duration.between(source.start, it) }
+      while (!nextStart.toLocalDate().isAfter(until)) {
+        dao.insertSession(
+          source.copy(
+            sessionId = 0L,
+            start = nextStart,
+            scheduledEnd = duration?.let { nextStart.plus(it) },
+            end = null
+          )
+        )
+        nextStart = nextOccurrence(nextStart, frequency, source.recurrenceInterval)
+      }
+    }
     val allSessions = dao.getSessionList()
     val allExercises = dao.getSessionExerciseList()
     val allSets = dao.getSetList()
@@ -285,6 +307,17 @@ class GymRepository(
         }
       }
     }
+  }
+
+  private fun nextOccurrence(
+    dateTime: LocalDateTime,
+    frequency: RecurrenceFrequency,
+    interval: Int
+  ): LocalDateTime = when (frequency) {
+    RecurrenceFrequency.NONE -> dateTime
+    RecurrenceFrequency.DAILY -> dateTime.plusDays(interval.coerceAtLeast(1).toLong())
+    RecurrenceFrequency.WEEKLY -> dateTime.plusWeeks(interval.coerceAtLeast(1).toLong())
+    RecurrenceFrequency.MONTHLY -> dateTime.plusMonths(interval.coerceAtLeast(1).toLong())
   }
 
   private fun futureOccurrences(session: Session): List<Session> {

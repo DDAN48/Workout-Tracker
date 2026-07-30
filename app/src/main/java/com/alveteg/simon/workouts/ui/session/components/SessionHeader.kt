@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -64,6 +65,7 @@ fun SessionHeader(
   onEndTime: () -> Unit,
   onStartTime: () -> Unit,
   onColorClick: () -> Unit,
+  onRecurrenceClick: () -> Unit,
   onToggleEdit: () -> Unit,
   timerState: TimerState,
   timerVisible: Boolean,
@@ -224,6 +226,14 @@ fun SessionHeader(
         modifier = Modifier
           .width(8.dp)
       )
+      ScaleVisibility(visible = screenUnlocked) {
+        HeaderItem(
+          modifier = Modifier.padding(end = 8.dp).width(42.dp),
+          onClick = onRecurrenceClick
+        ) {
+          Icon(Icons.Outlined.Repeat, contentDescription = "Change recurrence", modifier = Modifier.size(18.dp))
+        }
+      }
       ScaleVisibility(visible = screenUnlocked) {
         HeaderItem(
           modifier = Modifier

@@ -199,6 +199,15 @@ class SessionViewModel @Inject constructor(
         }
       }
 
+      is SessionEvent.SetRecurrence -> {
+        updateSession(
+          _session.value.copy(
+            recurrenceFrequency = event.frequency.name,
+            recurrenceInterval = event.interval.coerceAtLeast(1)
+          )
+        )
+      }
+
       is SessionEvent.ReorderExercises -> {
         val currentList = _exercises.value.toMutableList()
         val reorderedItem = currentList.removeAt(event.from)
