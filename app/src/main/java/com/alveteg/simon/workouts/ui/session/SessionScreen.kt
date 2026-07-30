@@ -118,9 +118,9 @@ fun SessionScreen(
   val exercises by viewModel.exercises.collectAsState()
   val muscleGroups by viewModel.muscleGroups.collectAsState()
 
-  var screenUnlocked by remember(sessionWrapper) { mutableStateOf(false) }
-  LaunchedEffect(sessionWrapper) {
-    screenUnlocked = sessionWrapper.session.end == null
+  var screenUnlocked by rememberSaveable(sessionWrapper.session.sessionId) { mutableStateOf(false) }
+  LaunchedEffect(sessionWrapper.session.sessionId) {
+    screenUnlocked = false
   }
 
   var timerState by remember { mutableStateOf(TimerState(0L, false, 0L)) }
@@ -410,7 +410,9 @@ fun SessionScreen(
             timerVisible = timerVisible,
             onTimerButtonClick = { timerVisible = !timerVisible },
             onToggleEdit = {
-              if (screenUnlocked && sessionWrapper.session.recurrenceSeriesId != null) {
+              if (!screenUnlocked) {
+                screenUnlocked = true
+              } else if (sessionWrapper.session.recurrenceSeriesId != null) {
                 saveRecurringDialog = true
               } else if (sessionWrapper.session.end == null) {
                 endTimeDialogState.show()

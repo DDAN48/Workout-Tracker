@@ -260,10 +260,21 @@ class GymRepository(
     val allSets = dao.getSetList()
     val sourceExercises = allExercises.filter { it.parentSessionId == sessionId }
     val targets = allSessions.filter {
-      it.recurrenceSeriesId == seriesId && it.sessionId != sessionId && it.end == null &&
+      it.recurrenceSeriesId == seriesId && it.sessionId != sessionId &&
         (scope == RecurrenceEditScope.ALL || !it.start.isBefore(source.start))
     }
     targets.forEach { target ->
+      dao.updateSession(
+        target.copy(
+          title = source.title,
+          colorArgb = source.colorArgb,
+          calendarId = source.calendarId,
+          recurrenceFrequency = source.recurrenceFrequency,
+          recurrenceInterval = source.recurrenceInterval,
+          recurrenceUntil = source.recurrenceUntil
+        )
+      )
+      if (target.end != null) return@forEach
       allExercises.filter { it.parentSessionId == target.sessionId }.forEach { dao.removeSessionExercise(it) }
       sourceExercises.forEach { sourceExercise ->
         val newExerciseId = dao.insertSessionExercise(

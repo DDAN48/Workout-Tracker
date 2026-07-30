@@ -46,7 +46,6 @@ import androidx.compose.material.icons.filled.ViewDay
 import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -209,13 +208,6 @@ fun HomeScreen(
           )
         }
         HorizontalDivider()
-        NavigationDrawerItem(
-          label = { Text("Refresh") },
-          icon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-          selected = false,
-          onClick = { scope.launch { drawerState.close() } }
-        )
-        HorizontalDivider()
         Text("Workout calendars", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(16.dp))
         calendars.forEach { calendar ->
           Row(
@@ -231,13 +223,14 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
           ) {
               Box(
-                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)).background(Color(calendar.colorArgb)),
+                modifier = Modifier
+                  .size(22.dp)
+                  .clip(RoundedCornerShape(4.dp))
+                  .background(Color(calendar.colorArgb))
+                  .clickable { viewModel.onEvent(HomeEvent.ToggleCalendar(calendar)) },
                 contentAlignment = Alignment.Center
               ) { if (calendar.visible) Text("✓", color = Color.White) }
             Text(calendar.name, modifier = Modifier.weight(1f).padding(start = 16.dp))
-            TextButton(onClick = { viewModel.onEvent(HomeEvent.ToggleCalendar(calendar)) }) {
-              Text(if (calendar.visible) "Hide" else "Show")
-            }
           }
         }
         NavigationDrawerItem(label = { Text("+ Add calendar") }, selected = false, onClick = {
