@@ -121,7 +121,7 @@ fun HomeScreen(
   val viewMode by viewModel.calendarViewMode.collectAsState()
   val calendars by viewModel.workoutCalendars.collectAsState()
   val visibleCalendarIds = calendars.filter { it.visible }.map { it.calendarId }.toSet()
-  val visibleSessions = sessions.filter { visibleCalendarIds.isEmpty() || it.session.calendarId in visibleCalendarIds }
+  val visibleSessions = sessions.filter { it.session.calendarId in visibleCalendarIds }
   val drawerState = rememberDrawerState(DrawerValue.Closed)
   val scope = rememberCoroutineScope()
   var visibleMonth by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
@@ -157,11 +157,13 @@ fun HomeScreen(
     AlertDialog(
       onDismissRequest = { calendarToDelete = null },
       title = { Text("Delete ${calendar.name}?") },
-      text = { Text("Its workouts will be moved to the default Workouts calendar.") },
+      text = { Text("Its workouts will be moved to another available calendar. If none remain, they stay unassigned.") },
       confirmButton = {
         Button(onClick = {
           viewModel.onEvent(HomeEvent.DeleteCalendar(calendar))
-          if (selectedCalendarId == calendar.calendarId) selectedCalendarId = 1L
+          if (selectedCalendarId == calendar.calendarId) {
+            selectedCalendarId = calendars.firstOrNull { it.calendarId != calendar.calendarId }?.calendarId ?: 0L
+          }
           calendarToDelete = null
         }) { Text("Delete") }
       },
@@ -217,7 +219,7 @@ fun HomeScreen(
               .background(if (selectedCalendarId == calendar.calendarId) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
               .combinedClickable(
                 onClick = { selectedCalendarId = calendar.calendarId },
-                onLongClick = { if (calendar.calendarId != 1L) calendarToDelete = calendar }
+                onLongClick = { calendarToDelete = calendar }
               )
               .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically

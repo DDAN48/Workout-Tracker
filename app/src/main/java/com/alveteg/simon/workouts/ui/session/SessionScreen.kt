@@ -452,7 +452,7 @@ fun SessionScreen(
                 screenUnlocked = true
               } else if (
                 sessionWrapper.session.recurrenceSeriesId != null ||
-                sessionWrapper.session.recurrenceFrequency != RecurrenceFrequency.NONE.name
+                recurrenceFrequency != RecurrenceFrequency.NONE
               ) {
                 saveRecurringDialog = true
               } else if (sessionWrapper.session.end == null) {

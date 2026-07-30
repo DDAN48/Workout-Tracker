@@ -12,7 +12,6 @@ import androidx.work.workDataOf
 import com.alveteg.simon.workouts.R
 import com.alveteg.simon.workouts.db.GymRepository
 import com.alveteg.simon.workouts.db.UserPreferencesRepository
-import com.alveteg.simon.workouts.db.entities.Session
 import com.alveteg.simon.workouts.ui.SessionWrapper
 import com.alveteg.simon.workouts.utils.Event
 import com.alveteg.simon.workouts.utils.Routes
@@ -26,7 +25,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -43,14 +41,6 @@ class HomeViewModel @Inject constructor(
   private val prefsRepo: UserPreferencesRepository,
   private val application: Application
 ) : ViewModel() {
-  init {
-    viewModelScope.launch(Dispatchers.IO) {
-      if (repo.getWorkoutCalendars().first().isEmpty()) {
-        repo.addWorkoutCalendar("Workouts", Session.DEFAULT_SESSION_COLOR)
-      }
-    }
-  }
-
   val calendarViewMode = prefsRepo.calendarViewMode
     .map { runCatching { CalendarViewMode.valueOf(it) }.getOrDefault(CalendarViewMode.MONTH) }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CalendarViewMode.MONTH)

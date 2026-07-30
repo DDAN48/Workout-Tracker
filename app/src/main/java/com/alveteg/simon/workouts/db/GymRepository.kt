@@ -55,10 +55,11 @@ class GymRepository(
   suspend fun toggleWorkoutCalendar(calendar: WorkoutCalendar) =
     dao.updateWorkoutCalendar(calendar.copy(visible = !calendar.visible))
   suspend fun deleteWorkoutCalendar(calendar: WorkoutCalendar) = database.withTransaction {
-    if (calendar.calendarId != 1L) {
-      dao.moveSessionsToDefaultCalendar(calendar.calendarId)
-      dao.deleteWorkoutCalendar(calendar)
-    }
+    val fallbackId = dao.getWorkoutCalendarList()
+      .firstOrNull { it.calendarId != calendar.calendarId }
+      ?.calendarId ?: 0L
+    dao.moveSessionsToCalendar(calendar.calendarId, fallbackId)
+    dao.deleteWorkoutCalendar(calendar)
   }
 
   fun getAllSets() = dao.getAllSets()
@@ -275,6 +276,39 @@ class GymRepository(
           )
         )
         nextStart = nextOccurrence(nextStart, frequency, source.recurrenceInterval)
+      }
+    }
+    val configuredFrequency = runCatching { RecurrenceFrequency.valueOf(source.recurrenceFrequency) }
+      .getOrDefault(RecurrenceFrequency.NONE)
+    val existingSeries = dao.getSessionList().filter { it.recurrenceSeriesId == seriesId }
+    val pendingToReplace = existingSeries.filter {
+      it.sessionId != sessionId && it.end == null &&
+        (scope == RecurrenceEditScope.ALL || !it.start.isBefore(source.start))
+    }
+    pendingToReplace.forEach { dao.removeSession(it) }
+    if (configuredFrequency == RecurrenceFrequency.NONE) {
+      source = source.copy(recurrenceSeriesId = null, recurrenceUntil = null)
+      dao.updateSession(source)
+    } else {
+      val until = source.recurrenceUntil?.let(LocalDate::parse) ?: source.start.toLocalDate().plusYears(1)
+      val duration = source.scheduledEnd?.let { java.time.Duration.between(source.start, it) }
+      val occupiedDates = dao.getSessionList()
+        .filter { it.recurrenceSeriesId == seriesId }
+        .map { it.start.toLocalDate() }
+        .toSet()
+      var nextStart = nextOccurrence(source.start, configuredFrequency, source.recurrenceInterval)
+      while (!nextStart.toLocalDate().isAfter(until)) {
+        if (nextStart.toLocalDate() !in occupiedDates) {
+          dao.insertSession(
+            source.copy(
+              sessionId = 0L,
+              start = nextStart,
+              scheduledEnd = duration?.let { nextStart.plus(it) },
+              end = null
+            )
+          )
+        }
+        nextStart = nextOccurrence(nextStart, configuredFrequency, source.recurrenceInterval)
       }
     }
     val allSessions = dao.getSessionList()
