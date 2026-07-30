@@ -27,6 +27,7 @@ class UserPreferencesRepository @Inject constructor(
     val RESISTANCE_UNIT = stringPreferencesKey("resistance_unit")
     val APP_THEME = stringPreferencesKey("app_theme")
     val USE_DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
+    val CALENDAR_VIEW_MODE = stringPreferencesKey("calendar_view_mode")
   }
 
   val targetFrequency: Flow<Float> = context.dataStore.data
@@ -53,6 +54,9 @@ class UserPreferencesRepository @Inject constructor(
   val useDynamicColor: Flow<Boolean> = context.dataStore.data
     .map { preferences -> preferences[PreferencesKeys.USE_DYNAMIC_COLOR] ?: false }
 
+  val calendarViewMode: Flow<String> = context.dataStore.data
+    .map { preferences -> preferences[PreferencesKeys.CALENDAR_VIEW_MODE] ?: "MONTH" }
+
   suspend fun updateTargetFrequency(value: Float) {
     context.dataStore.edit { it[PreferencesKeys.TARGET_FREQUENCY] = value }
   }
@@ -75,5 +79,9 @@ class UserPreferencesRepository @Inject constructor(
 
   suspend fun updateUseDynamicColor(enabled: Boolean) {
     context.dataStore.edit { it[PreferencesKeys.USE_DYNAMIC_COLOR] = enabled }
+  }
+
+  suspend fun updateCalendarViewMode(mode: String) {
+    context.dataStore.edit { it[PreferencesKeys.CALENDAR_VIEW_MODE] = mode }
   }
 }

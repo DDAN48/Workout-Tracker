@@ -6,6 +6,8 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -65,6 +70,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
+import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -89,9 +95,13 @@ fun HomeScreen(
   viewModel: HomeViewModel = hiltViewModel()
 ) {
   val sessions by viewModel.sessions.collectAsState()
+  val viewMode by viewModel.calendarViewMode.collectAsState()
   var visibleMonth by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
+  var focusedDateValue by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
   var editorDate by remember { mutableStateOf<LocalDate?>(null) }
+  var actionSession by remember { mutableStateOf<SessionWrapper?>(null) }
   val month = YearMonth.parse(visibleMonth)
+  val focusedDate = LocalDate.parse(focusedDateValue)
 
   LaunchedEffect(Unit) {
     viewModel.uiEvent.collect { event ->
@@ -110,61 +120,154 @@ fun HomeScreen(
     )
   }
 
+  actionSession?.let { session ->
+    SessionActionsDialog(
+      session = session,
+      onDismiss = { actionSession = null },
+      onCopy = { date ->
+        viewModel.onEvent(HomeEvent.CopySession(session.session.sessionId, date))
+        actionSession = null
+      },
+      onMove = { date ->
+        viewModel.onEvent(HomeEvent.MoveSession(session.session.sessionId, date))
+        actionSession = null
+      }
+    )
+  }
+
   Scaffold(
     topBar = {
       CalendarTopBar(
         month = month,
-        onPrevious = { visibleMonth = month.minusMonths(1).toString() },
-        onNext = { visibleMonth = month.plusMonths(1).toString() },
-        onToday = { visibleMonth = YearMonth.now().toString() },
+        viewMode = viewMode,
+        onPrevious = {
+          when (viewMode) {
+            CalendarViewMode.MONTH -> visibleMonth = month.minusMonths(1).toString()
+            CalendarViewMode.WEEK -> focusedDate.minusWeeks(1).let {
+              focusedDateValue = it.toString()
+              visibleMonth = YearMonth.from(it).toString()
+            }
+            CalendarViewMode.DAY -> focusedDate.minusDays(1).let {
+              focusedDateValue = it.toString()
+              visibleMonth = YearMonth.from(it).toString()
+            }
+          }
+        },
+        onNext = {
+          when (viewMode) {
+            CalendarViewMode.MONTH -> visibleMonth = month.plusMonths(1).toString()
+            CalendarViewMode.WEEK -> focusedDate.plusWeeks(1).let {
+              focusedDateValue = it.toString()
+              visibleMonth = YearMonth.from(it).toString()
+            }
+            CalendarViewMode.DAY -> focusedDate.plusDays(1).let {
+              focusedDateValue = it.toString()
+              visibleMonth = YearMonth.from(it).toString()
+            }
+          }
+        },
+        onToday = {
+          visibleMonth = YearMonth.now().toString()
+          focusedDateValue = LocalDate.now().toString()
+        },
+        onViewMode = { viewModel.onEvent(HomeEvent.SetCalendarView(it)) },
         onSettings = { viewModel.onEvent(HomeEvent.OpenSettings) }
       )
     },
     floatingActionButton = {
-      FloatingActionButton(onClick = { editorDate = LocalDate.now() }) {
+      FloatingActionButton(onClick = { editorDate = if (viewMode == CalendarViewMode.MONTH) LocalDate.now() else focusedDate }) {
         Icon(Icons.Default.Add, contentDescription = "New workout")
       }
     }
   ) { innerPadding ->
-    MonthCalendar(
-      month = month,
-      sessions = sessions,
-      onDateClick = { editorDate = it },
-      onSessionClick = { viewModel.onEvent(HomeEvent.SessionClicked(it)) },
-      modifier = Modifier.padding(innerPadding)
-    )
+    when (viewMode) {
+      CalendarViewMode.MONTH -> MonthCalendar(
+        month = month,
+        sessions = sessions,
+        onDateClick = {
+          focusedDateValue = it.toString()
+          editorDate = it
+        },
+        onSessionClick = { viewModel.onEvent(HomeEvent.SessionClicked(it)) },
+        onSessionLongClick = { actionSession = it },
+        modifier = Modifier.padding(innerPadding)
+      )
+      CalendarViewMode.WEEK -> WeekCalendar(
+        focusedDate = focusedDate,
+        sessions = sessions,
+        onDateChange = {
+          focusedDateValue = it.toString()
+          visibleMonth = YearMonth.from(it).toString()
+        },
+        onNewSession = { editorDate = it },
+        onSessionClick = { viewModel.onEvent(HomeEvent.SessionClicked(it)) },
+        onSessionLongClick = { actionSession = it },
+        modifier = Modifier.padding(innerPadding)
+      )
+      CalendarViewMode.DAY -> DayCalendar(
+        date = focusedDate,
+        sessions = sessions,
+        onDateChange = {
+          focusedDateValue = it.toString()
+          visibleMonth = YearMonth.from(it).toString()
+        },
+        onNewSession = { editorDate = it },
+        onSessionClick = { viewModel.onEvent(HomeEvent.SessionClicked(it)) },
+        onSessionLongClick = { actionSession = it },
+        modifier = Modifier.padding(innerPadding)
+      )
+    }
   }
 }
 
 @Composable
 private fun CalendarTopBar(
   month: YearMonth,
+  viewMode: CalendarViewMode,
   onPrevious: () -> Unit,
   onNext: () -> Unit,
   onToday: () -> Unit,
+  onViewMode: (CalendarViewMode) -> Unit,
   onSettings: () -> Unit
 ) {
   Surface(shadowElevation = 2.dp) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 8.dp, vertical = 10.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Text(
-        text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")).replaceFirstChar { it.uppercase() },
-        style = MaterialTheme.typography.headlineSmall,
-        modifier = Modifier.weight(1f)
-      )
-      TextButton(onClick = onToday) { Text("Today") }
-      IconButton(onClick = onPrevious) {
-        Icon(Icons.Default.ArrowBack, contentDescription = "Previous month")
+    Column {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Text(
+          text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")).replaceFirstChar { it.uppercase() },
+          style = MaterialTheme.typography.headlineSmall,
+          modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onToday) { Text("Today") }
+        IconButton(onClick = onPrevious) {
+          Icon(Icons.Default.ArrowBack, contentDescription = "Previous month")
+        }
+        IconButton(onClick = onNext) {
+          Icon(Icons.Default.ArrowForward, contentDescription = "Next month")
+        }
+        IconButton(onClick = onSettings) {
+          Icon(Icons.Default.Settings, contentDescription = "Settings")
+        }
       }
-      IconButton(onClick = onNext) {
-        Icon(Icons.Default.ArrowForward, contentDescription = "Next month")
-      }
-      IconButton(onClick = onSettings) {
-        Icon(Icons.Default.Settings, contentDescription = "Settings")
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        CalendarViewMode.entries.forEach { mode ->
+          FilterChip(
+            selected = viewMode == mode,
+            onClick = { onViewMode(mode) },
+            label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
+            modifier = Modifier.weight(1f)
+          )
+        }
       }
     }
   }
@@ -176,6 +279,7 @@ private fun MonthCalendar(
   sessions: List<SessionWrapper>,
   onDateClick: (LocalDate) -> Unit,
   onSessionClick: (SessionWrapper) -> Unit,
+  onSessionLongClick: (SessionWrapper) -> Unit,
   modifier: Modifier = Modifier
 ) {
   val first = month.atDay(1)
@@ -209,7 +313,8 @@ private fun MonthCalendar(
           inCurrentMonth = date.month == month.month,
           sessions = sessionsByDate[date].orEmpty(),
           onDateClick = { onDateClick(date) },
-          onSessionClick = onSessionClick
+          onSessionClick = onSessionClick,
+          onSessionLongClick = onSessionLongClick
         )
       }
     }
@@ -222,7 +327,8 @@ private fun CalendarDay(
   inCurrentMonth: Boolean,
   sessions: List<SessionWrapper>,
   onDateClick: () -> Unit,
-  onSessionClick: (SessionWrapper) -> Unit
+  onSessionClick: (SessionWrapper) -> Unit,
+  onSessionLongClick: (SessionWrapper) -> Unit
 ) {
   val isToday = date == LocalDate.now()
   Column(
@@ -253,7 +359,7 @@ private fun CalendarDay(
     }
     Spacer(Modifier.height(2.dp))
     sessions.take(3).forEach { session ->
-      CalendarSessionCard(session, onSessionClick)
+      CalendarSessionCard(session, onSessionClick, onSessionLongClick)
     }
     if (sessions.size > 3) {
       Text("+${sessions.size - 3}", style = MaterialTheme.typography.labelSmall)
@@ -261,8 +367,13 @@ private fun CalendarDay(
   }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CalendarSessionCard(session: SessionWrapper, onClick: (SessionWrapper) -> Unit) {
+private fun CalendarSessionCard(
+  session: SessionWrapper,
+  onClick: (SessionWrapper) -> Unit,
+  onLongClick: (SessionWrapper) -> Unit
+) {
   val label = session.session.title.ifBlank {
     session.muscleGroups.firstOrNull()?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Workout"
   }
@@ -272,8 +383,11 @@ private fun CalendarSessionCard(session: SessionWrapper, onClick: (SessionWrappe
     shape = RoundedCornerShape(3.dp),
     modifier = Modifier
       .fillMaxWidth()
-      .padding(bottom = 2.dp),
-    onClick = { onClick(session) }
+      .padding(bottom = 2.dp)
+      .combinedClickable(
+        onClick = { onClick(session) },
+        onLongClick = { onLongClick(session) }
+      )
   ) {
     Text(
       text = label,
@@ -283,6 +397,192 @@ private fun CalendarSessionCard(session: SessionWrapper, onClick: (SessionWrappe
       modifier = Modifier.padding(horizontal = 3.dp, vertical = 2.dp)
     )
   }
+}
+
+@Composable
+private fun WeekCalendar(
+  focusedDate: LocalDate,
+  sessions: List<SessionWrapper>,
+  onDateChange: (LocalDate) -> Unit,
+  onNewSession: (LocalDate) -> Unit,
+  onSessionClick: (SessionWrapper) -> Unit,
+  onSessionLongClick: (SessionWrapper) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val weekStart = focusedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+  val days = List(7) { weekStart.plusDays(it.toLong()) }
+  val sessionsByDate = remember(sessions) { sessions.groupBy { it.session.start.toLocalDate() } }
+  LazyColumn(modifier = modifier.fillMaxSize()) {
+    items(days, key = { it.toEpochDay() }) { date ->
+      AgendaDay(
+        date = date,
+        sessions = sessionsByDate[date].orEmpty(),
+        selected = date == focusedDate,
+        onDateClick = { onDateChange(date) },
+        onNewSession = { onNewSession(date) },
+        onSessionClick = onSessionClick,
+        onSessionLongClick = onSessionLongClick
+      )
+    }
+  }
+}
+
+@Composable
+private fun DayCalendar(
+  date: LocalDate,
+  sessions: List<SessionWrapper>,
+  onDateChange: (LocalDate) -> Unit,
+  onNewSession: (LocalDate) -> Unit,
+  onSessionClick: (SessionWrapper) -> Unit,
+  onSessionLongClick: (SessionWrapper) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val daySessions = remember(sessions, date) {
+    sessions.filter { it.session.start.toLocalDate() == date }
+  }
+  LazyColumn(modifier = modifier.fillMaxSize()) {
+    item {
+      AgendaDay(
+        date = date,
+        sessions = daySessions,
+        selected = true,
+        onDateClick = { onDateChange(date) },
+        onNewSession = { onNewSession(date) },
+        onSessionClick = onSessionClick,
+        onSessionLongClick = onSessionLongClick
+      )
+    }
+  }
+}
+
+@Composable
+private fun AgendaDay(
+  date: LocalDate,
+  sessions: List<SessionWrapper>,
+  selected: Boolean,
+  onDateClick: () -> Unit,
+  onNewSession: () -> Unit,
+  onSessionClick: (SessionWrapper) -> Unit,
+  onSessionLongClick: (SessionWrapper) -> Unit
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp, vertical = 6.dp)
+      .clip(RoundedCornerShape(14.dp))
+      .background(if (selected) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLow)
+      .clickable(onClick = onDateClick)
+      .padding(12.dp)
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.SemiBold
+        )
+        Text(
+          text = date.format(DateTimeFormatter.ofPattern("d MMMM yyyy")),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+      IconButton(onClick = onNewSession) {
+        Icon(Icons.Default.Add, contentDescription = "Add workout on this day")
+      }
+    }
+    if (sessions.isEmpty()) {
+      Text(
+        text = "No workouts scheduled",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 12.dp)
+      )
+    } else {
+      sessions.sortedBy { it.session.start }.forEach { session ->
+        AgendaSessionCard(session, onSessionClick, onSessionLongClick)
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AgendaSessionCard(
+  session: SessionWrapper,
+  onClick: (SessionWrapper) -> Unit,
+  onLongClick: (SessionWrapper) -> Unit
+) {
+  val title = session.session.title.ifBlank { "Workout" }
+  val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+  val end = session.session.scheduledEnd ?: session.session.end
+  Surface(
+    color = Color(session.session.colorArgb),
+    contentColor = Color.White,
+    shape = RoundedCornerShape(10.dp),
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(top = 8.dp)
+      .combinedClickable(
+        onClick = { onClick(session) },
+        onLongClick = { onLongClick(session) }
+      )
+  ) {
+    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+      Column(modifier = Modifier.weight(1f)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(
+          session.muscleGroups.take(3).joinToString(),
+          style = MaterialTheme.typography.bodySmall,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+      }
+      Text(
+        text = buildString {
+          append(session.session.start.format(timeFormatter))
+          end?.let { append(" – ${it.format(timeFormatter)}") }
+        },
+        style = MaterialTheme.typography.labelLarge
+      )
+    }
+  }
+}
+
+@Composable
+private fun SessionActionsDialog(
+  session: SessionWrapper,
+  onDismiss: () -> Unit,
+  onCopy: (LocalDate) -> Unit,
+  onMove: (LocalDate) -> Unit
+) {
+  val context = LocalContext.current
+  val sourceDate = session.session.start.toLocalDate()
+
+  fun selectDate(onDate: (LocalDate) -> Unit) {
+    DatePickerDialog(
+      context,
+      { _, year, month, day -> onDate(LocalDate.of(year, month + 1, day)) },
+      sourceDate.year,
+      sourceDate.monthValue - 1,
+      sourceDate.dayOfMonth
+    ).show()
+  }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(session.session.title.ifBlank { "Workout" }) },
+    text = { Text("Copy duplicates every exercise and set. Move keeps the original workout and changes its date.") },
+    confirmButton = {
+      Button(onClick = { selectDate(onCopy) }) { Text("Copy") }
+    },
+    dismissButton = {
+      Row {
+        TextButton(onClick = { selectDate(onMove) }) { Text("Move") }
+        TextButton(onClick = onDismiss) { Text("Cancel") }
+      }
+    }
+  )
 }
 
 @Composable

@@ -43,6 +43,10 @@ class HomeViewModel @Inject constructor(
   private val application: Application
 ) : ViewModel() {
 
+  val calendarViewMode = prefsRepo.calendarViewMode
+    .map { runCatching { CalendarViewMode.valueOf(it) }.getOrDefault(CalendarViewMode.MONTH) }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CalendarViewMode.MONTH)
+
   val sessions = combine(
     repo.getAllSessionExercises(),
     repo.getAllSessions(),
@@ -130,6 +134,18 @@ class HomeViewModel @Inject constructor(
             )
           }
         }
+      }
+
+      is HomeEvent.SetCalendarView -> {
+        viewModelScope.launch { prefsRepo.updateCalendarViewMode(event.mode.name) }
+      }
+
+      is HomeEvent.CopySession -> {
+        viewModelScope.launch(Dispatchers.IO) { repo.copySession(event.sessionId, event.date) }
+      }
+
+      is HomeEvent.MoveSession -> {
+        viewModelScope.launch(Dispatchers.IO) { repo.moveSession(event.sessionId, event.date) }
       }
 
       else -> Unit

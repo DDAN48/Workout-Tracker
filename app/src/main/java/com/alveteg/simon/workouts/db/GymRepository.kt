@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
+import androidx.room.withTransaction
+import java.time.LocalDate
 import timber.log.Timber
 import java.io.File
 import kotlin.collections.filter
@@ -98,6 +100,44 @@ class GymRepository(
   suspend fun removeSession(session: Session) = dao.removeSession(session)
 
   suspend fun updateSession(session: Session) = dao.updateSession(session)
+
+  suspend fun moveSession(sessionId: Long, date: LocalDate) = database.withTransaction {
+    val session = dao.getSessionById(sessionId)
+    val days = date.toEpochDay() - session.start.toLocalDate().toEpochDay()
+    dao.updateSession(
+      session.copy(
+        start = session.start.plusDays(days),
+        scheduledEnd = session.scheduledEnd?.plusDays(days),
+        end = session.end?.plusDays(days)
+      )
+    )
+  }
+
+  suspend fun copySession(sessionId: Long, date: LocalDate): Long = database.withTransaction {
+    val source = dao.getSessionById(sessionId)
+    val days = date.toEpochDay() - source.start.toLocalDate().toEpochDay()
+    val copiedSessionId = dao.insertSession(
+      source.copy(
+        sessionId = 0L,
+        start = source.start.plusDays(days),
+        scheduledEnd = source.scheduledEnd?.plusDays(days),
+        end = null
+      )
+    )
+    val sourceExercises = dao.getSessionExerciseList().filter { it.parentSessionId == sessionId }
+    val sourceSets = dao.getSetList()
+    sourceExercises.forEach { sourceExercise ->
+      val copiedExerciseId = dao.insertSessionExercise(
+        sourceExercise.copy(sessionExerciseId = 0L, parentSessionId = copiedSessionId)
+      )
+      sourceSets
+        .filter { it.parentSessionExerciseId == sourceExercise.sessionExerciseId }
+        .forEach { sourceSet ->
+          dao.insertSet(sourceSet.copy(setId = 0L, parentSessionExerciseId = copiedExerciseId))
+        }
+    }
+    copiedSessionId
+  }
 
   suspend fun insertSessionExercise(sessionExercise: SessionExercise): Long {
     return withContext(Dispatchers.IO) {

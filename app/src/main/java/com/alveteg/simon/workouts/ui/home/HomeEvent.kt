@@ -15,4 +15,9 @@ sealed class HomeEvent : Event {
     val colorArgb: Long
   ) : HomeEvent()
   object OpenSettings : HomeEvent()
+  data class SetCalendarView(val mode: CalendarViewMode) : HomeEvent()
+  data class CopySession(val sessionId: Long, val date: LocalDate) : HomeEvent()
+  data class MoveSession(val sessionId: Long, val date: LocalDate) : HomeEvent()
 }
+
+enum class CalendarViewMode { DAY, WEEK, MONTH }
