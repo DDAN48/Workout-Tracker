@@ -25,11 +25,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -122,6 +125,7 @@ fun HomeScreen(
   val drawerState = rememberDrawerState(DrawerValue.Closed)
   val scope = rememberCoroutineScope()
   var visibleMonth by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
+  var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
   var focusedDateValue by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
   var editorDate by remember { mutableStateOf<LocalDate?>(null) }
   var actionSession by remember { mutableStateOf<SessionWrapper?>(null) }
@@ -225,6 +229,12 @@ fun HomeScreen(
       CalendarTopBar(
         month = month,
         onMenu = { scope.launch { drawerState.open() } },
+        monthPickerVisible = monthPickerVisible,
+        onMonthClick = { monthPickerVisible = !monthPickerVisible },
+        onMonthSelected = {
+          visibleMonth = it.toString()
+          focusedDateValue = it.atDay(1).toString()
+        },
         onPrevious = {
           when (viewMode) {
             CalendarViewMode.MONTH -> visibleMonth = month.minusMonths(1).toString()
@@ -325,6 +335,9 @@ fun HomeScreen(
 private fun CalendarTopBar(
   month: YearMonth,
   onMenu: () -> Unit,
+  monthPickerVisible: Boolean,
+  onMonthClick: () -> Unit,
+  onMonthSelected: (YearMonth) -> Unit,
   onPrevious: () -> Unit,
   onNext: () -> Unit,
   onToday: () -> Unit
@@ -346,7 +359,9 @@ private fun CalendarTopBar(
           style = MaterialTheme.typography.headlineSmall,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
-          modifier = Modifier.weight(1f)
+          modifier = Modifier
+            .weight(1f)
+            .clickable(onClick = onMonthClick)
         )
         TextButton(onClick = onToday) { Text("Today") }
         IconButton(onClick = onPrevious) {
@@ -354,6 +369,71 @@ private fun CalendarTopBar(
         }
         IconButton(onClick = onNext) {
           Icon(Icons.Default.ArrowForward, contentDescription = "Next month")
+        }
+      }
+      if (monthPickerVisible) {
+        MonthPickerRibbon(selectedMonth = month, onMonthSelected = onMonthSelected)
+      }
+    }
+  }
+}
+
+private data class MonthRibbonItem(val label: String, val month: YearMonth? = null)
+
+@Composable
+private fun MonthPickerRibbon(
+  selectedMonth: YearMonth,
+  onMonthSelected: (YearMonth) -> Unit
+) {
+  val items = remember(selectedMonth.year) {
+    buildList {
+      for (year in (selectedMonth.year - 2)..(selectedMonth.year + 3)) {
+        (1..12).forEach { monthNumber ->
+          val value = YearMonth.of(year, monthNumber)
+          add(
+            MonthRibbonItem(
+              label = value.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+              month = value
+            )
+          )
+        }
+        add(MonthRibbonItem(label = (year + 1).toString()))
+      }
+    }
+  }
+  val listState = rememberLazyListState(initialFirstVisibleItemIndex = 26 + selectedMonth.monthValue - 1)
+  LazyRow(
+    state = listState,
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(bottom = 8.dp),
+    horizontalArrangement = Arrangement.spacedBy(4.dp),
+    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+  ) {
+    items(items, key = { "${it.label}-${it.month}" }) { item ->
+      if (item.month == null) {
+        Box(
+          modifier = Modifier
+            .width(58.dp)
+            .height(38.dp),
+          contentAlignment = Alignment.Center
+        ) {
+          Text(item.label, style = MaterialTheme.typography.labelMedium)
+        }
+      } else {
+        Surface(
+          color = if (item.month == selectedMonth) MaterialTheme.colorScheme.primaryContainer
+          else MaterialTheme.colorScheme.surfaceContainer,
+          shape = RoundedCornerShape(14.dp),
+          onClick = { onMonthSelected(item.month) },
+          modifier = Modifier.width(58.dp)
+        ) {
+          Text(
+            text = item.label,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
+          )
         }
       }
     }
