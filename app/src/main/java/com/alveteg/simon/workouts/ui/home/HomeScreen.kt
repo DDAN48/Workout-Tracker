@@ -38,9 +38,16 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.ViewDay
+import androidx.compose.material.icons.filled.ViewWeek
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -167,14 +174,35 @@ fun HomeScreen(
         CalendarViewMode.entries.forEach { mode ->
           NavigationDrawerItem(
             label = { Text(mode.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }) },
+            icon = { Icon(when (mode) {
+              CalendarViewMode.AGENDA -> Icons.Default.ViewAgenda
+              CalendarViewMode.DAY -> Icons.Default.ViewDay
+              CalendarViewMode.THREE_DAYS -> Icons.Default.DateRange
+              CalendarViewMode.WEEK -> Icons.Default.ViewWeek
+              CalendarViewMode.MONTH -> Icons.Default.CalendarMonth
+            }, contentDescription = null) },
             selected = viewMode == mode,
             onClick = { viewModel.onEvent(HomeEvent.SetCalendarView(mode)); scope.launch { drawerState.close() } }
           )
         }
+        HorizontalDivider()
+        NavigationDrawerItem(
+          label = { Text("Refresh") },
+          icon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+          selected = false,
+          onClick = { scope.launch { drawerState.close() } }
+        )
+        HorizontalDivider()
         Text("Workout calendars", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(16.dp))
         calendars.forEach { calendar ->
           NavigationDrawerItem(
-            label = { Text((if (calendar.visible) "✓ " else "□ ") + calendar.name) },
+            label = { Text(calendar.name) },
+            icon = {
+              Box(
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)).background(Color(calendar.colorArgb)),
+                contentAlignment = Alignment.Center
+              ) { if (calendar.visible) Text("✓", color = Color.White) }
+            },
             selected = calendar.visible,
             onClick = { viewModel.onEvent(HomeEvent.ToggleCalendar(calendar)) }
           )
@@ -182,7 +210,13 @@ fun HomeScreen(
         NavigationDrawerItem(label = { Text("+ Add calendar") }, selected = false, onClick = {
           viewModel.onEvent(HomeEvent.AddCalendar("Calendar ${calendars.size + 1}", sessionColors[calendars.size % sessionColors.size]))
         })
-        NavigationDrawerItem(label = { Text("Settings") }, selected = false, onClick = { viewModel.onEvent(HomeEvent.OpenSettings) })
+        HorizontalDivider()
+        NavigationDrawerItem(
+          label = { Text("Settings") },
+          icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+          selected = false,
+          onClick = { viewModel.onEvent(HomeEvent.OpenSettings) }
+        )
       }
     }
   ) {
@@ -191,7 +225,6 @@ fun HomeScreen(
       CalendarTopBar(
         month = month,
         onMenu = { scope.launch { drawerState.open() } },
-        viewMode = viewMode,
         onPrevious = {
           when (viewMode) {
             CalendarViewMode.MONTH -> visibleMonth = month.minusMonths(1).toString()
@@ -229,9 +262,7 @@ fun HomeScreen(
         onToday = {
           visibleMonth = YearMonth.now().toString()
           focusedDateValue = LocalDate.now().toString()
-        },
-        onViewMode = { viewModel.onEvent(HomeEvent.SetCalendarView(it)) },
-        onSettings = { viewModel.onEvent(HomeEvent.OpenSettings) }
+        }
       )
     },
     floatingActionButton = {
@@ -294,12 +325,9 @@ fun HomeScreen(
 private fun CalendarTopBar(
   month: YearMonth,
   onMenu: () -> Unit,
-  viewMode: CalendarViewMode,
   onPrevious: () -> Unit,
   onNext: () -> Unit,
-  onToday: () -> Unit,
-  onViewMode: (CalendarViewMode) -> Unit,
-  onSettings: () -> Unit
+  onToday: () -> Unit
 ) {
   Surface(
     modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
@@ -314,8 +342,10 @@ private fun CalendarTopBar(
       ) {
         IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, contentDescription = "Menu") }
         Text(
-          text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")).replaceFirstChar { it.uppercase() },
+          text = month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()).replaceFirstChar { it.uppercase() },
           style = MaterialTheme.typography.headlineSmall,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
           modifier = Modifier.weight(1f)
         )
         TextButton(onClick = onToday) { Text("Today") }
@@ -324,24 +354,6 @@ private fun CalendarTopBar(
         }
         IconButton(onClick = onNext) {
           Icon(Icons.Default.ArrowForward, contentDescription = "Next month")
-        }
-        IconButton(onClick = onSettings) {
-          Icon(Icons.Default.Settings, contentDescription = "Settings")
-        }
-      }
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-      ) {
-        CalendarViewMode.entries.forEach { mode ->
-          FilterChip(
-            selected = viewMode == mode,
-            onClick = { onViewMode(mode) },
-            label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
-            modifier = Modifier.weight(1f)
-          )
         }
       }
     }
