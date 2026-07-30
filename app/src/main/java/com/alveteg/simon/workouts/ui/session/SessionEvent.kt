@@ -6,6 +6,7 @@ import com.alveteg.simon.workouts.ui.ExerciseWrapper
 import com.alveteg.simon.workouts.utils.Event
 import java.time.LocalTime
 import java.time.LocalDate
+import com.alveteg.simon.workouts.ui.home.RecurrenceEditScope
 
 sealed class SessionEvent : Event {
   data class ChangeSet(val updatedSet: GymSet) : SessionEvent()
@@ -26,4 +27,5 @@ sealed class SessionEvent : Event {
   data class SetEndTime(val newTime: LocalTime) : SessionEvent()
   data class SetDate(val newDate: LocalDate) : SessionEvent()
   data class SetColor(val colorArgb: Long) : SessionEvent()
+  data class SaveRecurringChanges(val scope: RecurrenceEditScope) : SessionEvent()
 }

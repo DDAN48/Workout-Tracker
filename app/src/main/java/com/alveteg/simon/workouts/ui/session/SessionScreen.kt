@@ -71,6 +71,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import timber.log.Timber
 import java.time.LocalTime
+import com.alveteg.simon.workouts.ui.home.RecurrenceEditScope
 
 @OptIn(
   ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class,
@@ -179,6 +180,38 @@ fun SessionScreen(
 
 
   var deleteSessionDialog by remember { mutableStateOf(false) }
+  var saveRecurringDialog by remember { mutableStateOf(false) }
+  if (saveRecurringDialog) {
+    androidx.compose.material3.AlertDialog(
+      onDismissRequest = { saveRecurringDialog = false },
+      title = { Text("Save recurring workout") },
+      text = { Text("Where should the exercise and set changes be applied?") },
+      confirmButton = {
+        androidx.compose.material3.TextButton(onClick = {
+          viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.ALL))
+          if (sessionWrapper.session.end == null) viewModel.onEvent(SessionEvent.SetEndTime(LocalTime.now()))
+          saveRecurringDialog = false
+          screenUnlocked = false
+        }) { Text("Entire series") }
+      },
+      dismissButton = {
+        androidx.compose.foundation.layout.Column {
+          androidx.compose.material3.TextButton(onClick = {
+            viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.THIS_AND_FOLLOWING))
+            if (sessionWrapper.session.end == null) viewModel.onEvent(SessionEvent.SetEndTime(LocalTime.now()))
+            saveRecurringDialog = false
+            screenUnlocked = false
+          }) { Text("This and following") }
+          androidx.compose.material3.TextButton(onClick = {
+            viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.THIS))
+            if (sessionWrapper.session.end == null) viewModel.onEvent(SessionEvent.SetEndTime(LocalTime.now()))
+            saveRecurringDialog = false
+            screenUnlocked = false
+          }) { Text("Only this session") }
+        }
+      }
+    )
+  }
   if (deleteSessionDialog) {
     DeletionAlertDialog(onDismiss = { deleteSessionDialog = false }, onDelete = {
       viewModel.onEvent(SessionEvent.RemoveSession)
@@ -377,7 +410,9 @@ fun SessionScreen(
             timerVisible = timerVisible,
             onTimerButtonClick = { timerVisible = !timerVisible },
             onToggleEdit = {
-              if (sessionWrapper.session.end == null) {
+              if (screenUnlocked && sessionWrapper.session.recurrenceSeriesId != null) {
+                saveRecurringDialog = true
+              } else if (sessionWrapper.session.end == null) {
                 endTimeDialogState.show()
               } else {
                 screenUnlocked = !screenUnlocked

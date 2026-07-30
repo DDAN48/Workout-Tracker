@@ -68,19 +68,7 @@ class GymRepository(
 
   fun getAllSessionExercises() = dao.getAllSessionExercises()
 
-  suspend fun updateSessionExercises(exercises: List<SessionExercise>) = database.withTransaction {
-    dao.updateSessionExercises(exercises)
-    exercises.firstOrNull()?.let { first ->
-      val sourceSession = dao.getSessionById(first.parentSessionId)
-      futureOccurrences(sourceSession).drop(1).forEach { targetSession ->
-        val targets = dao.getSessionExerciseList().filter { it.parentSessionId == targetSession.sessionId }
-        exercises.forEach { sourceExercise ->
-          targets.firstOrNull { it.parentExerciseId == sourceExercise.parentExerciseId }
-            ?.let { dao.updateSessionExercises(listOf(it.copy(exerciseOrder = sourceExercise.exerciseOrder))) }
-        }
-      }
-    }
-  }
+  suspend fun updateSessionExercises(exercises: List<SessionExercise>) = dao.updateSessionExercises(exercises)
 
   @OptIn(ExperimentalCoroutinesApi::class)
   fun getExercisesForSession(session: Flow<Session>): Flow<List<SessionExerciseWithExercise>> {
@@ -248,69 +236,44 @@ class GymRepository(
         .filter { it.parentSessionId == session.sessionId }
         .maxOfOrNull { it.exerciseOrder }
         ?.plus(1) ?: 0
-      var sourceId = 0L
-      futureOccurrences(session).forEach { occurrence ->
-        val id = dao.insertSessionExercise(
-          sessionExercise.copy(
-            sessionExerciseId = 0L,
-            parentSessionId = occurrence.sessionId,
-            exerciseOrder = exerciseOrder
-          )
-        )
-        if (occurrence.sessionId == session.sessionId) sourceId = id
-      }
-      sourceId
+      dao.insertSessionExercise(sessionExercise.copy(exerciseOrder = exerciseOrder))
     }
   }
 
-  suspend fun removeSessionExercise(sessionExercise: SessionExercise) = database.withTransaction {
-    val session = dao.getSessionById(sessionExercise.parentSessionId)
-    val allExercises = dao.getSessionExerciseList()
-    futureOccurrences(session).forEach { occurrence ->
-      allExercises.firstOrNull {
-        it.parentSessionId == occurrence.sessionId &&
-          it.parentExerciseId == sessionExercise.parentExerciseId &&
-          it.exerciseOrder == sessionExercise.exerciseOrder
-      }?.let { dao.removeSessionExercise(it) }
-    }
-  }
+  suspend fun removeSessionExercise(sessionExercise: SessionExercise) = dao.removeSessionExercise(sessionExercise)
 
   suspend fun insertSet(gymSet: GymSet) = dao.insertSet(gymSet)
 
-  suspend fun updateSet(set: GymSet) = database.withTransaction {
-    relatedSets(set).forEach { target ->
-      dao.updateSet(
-        target.copy(
-          reps = set.reps,
-          weight = set.weight,
-          time = set.time,
-          distance = set.distance,
-          rpe = set.rpe
-        )
-      )
-    }
-  }
+  suspend fun updateSet(set: GymSet) = dao.updateSet(set)
 
-  suspend fun deleteSet(set: GymSet) = database.withTransaction {
-    relatedSets(set).forEach { dao.deleteSet(it) }
-  }
+  suspend fun deleteSet(set: GymSet) = dao.deleteSet(set)
 
-  suspend fun createSet(sessionExercise: SessionExercise): Long = database.withTransaction {
-    val session = dao.getSessionById(sessionExercise.parentSessionId)
+  suspend fun createSet(sessionExercise: SessionExercise) =
+    dao.insertSet(GymSet(parentSessionExerciseId = sessionExercise.sessionExerciseId))
+
+  suspend fun syncRecurringPlan(sessionId: Long, scope: RecurrenceEditScope) = database.withTransaction {
+    if (scope == RecurrenceEditScope.THIS) return@withTransaction
+    val source = dao.getSessionById(sessionId)
+    val seriesId = source.recurrenceSeriesId ?: return@withTransaction
+    val allSessions = dao.getSessionList()
     val allExercises = dao.getSessionExerciseList()
-    var sourceSetId = 0L
-    futureOccurrences(session).forEach { occurrence ->
-      val targetExercise = allExercises.firstOrNull {
-        it.parentSessionId == occurrence.sessionId &&
-          it.parentExerciseId == sessionExercise.parentExerciseId &&
-          it.exerciseOrder == sessionExercise.exerciseOrder
-      }
-      targetExercise?.let {
-        val id = dao.insertSet(GymSet(parentSessionExerciseId = it.sessionExerciseId))
-        if (occurrence.sessionId == session.sessionId) sourceSetId = id
+    val allSets = dao.getSetList()
+    val sourceExercises = allExercises.filter { it.parentSessionId == sessionId }
+    val targets = allSessions.filter {
+      it.recurrenceSeriesId == seriesId && it.sessionId != sessionId && it.end == null &&
+        (scope == RecurrenceEditScope.ALL || !it.start.isBefore(source.start))
+    }
+    targets.forEach { target ->
+      allExercises.filter { it.parentSessionId == target.sessionId }.forEach { dao.removeSessionExercise(it) }
+      sourceExercises.forEach { sourceExercise ->
+        val newExerciseId = dao.insertSessionExercise(
+          sourceExercise.copy(sessionExerciseId = 0L, parentSessionId = target.sessionId)
+        )
+        allSets.filter { it.parentSessionExerciseId == sourceExercise.sessionExerciseId }.forEach { set ->
+          dao.insertSet(set.copy(setId = 0L, parentSessionExerciseId = newExerciseId))
+        }
       }
     }
-    sourceSetId
   }
 
   private fun futureOccurrences(session: Session): List<Session> {

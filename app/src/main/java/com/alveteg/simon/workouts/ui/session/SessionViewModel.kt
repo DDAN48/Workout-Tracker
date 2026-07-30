@@ -193,6 +193,12 @@ class SessionViewModel @Inject constructor(
         updateSession(_session.value.copy(colorArgb = event.colorArgb))
       }
 
+      is SessionEvent.SaveRecurringChanges -> {
+        viewModelScope.launch(Dispatchers.IO) {
+          repo.syncRecurringPlan(_session.value.sessionId, event.scope)
+        }
+      }
+
       is SessionEvent.ReorderExercises -> {
         val currentList = _exercises.value.toMutableList()
         val reorderedItem = currentList.removeAt(event.from)
