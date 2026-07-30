@@ -1,6 +1,5 @@
 package com.alveteg.simon.workouts.db
 
-import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -19,9 +18,6 @@ import com.alveteg.simon.workouts.utils.Converters
     Exercise::class,
     SessionExercise::class,
     GymSet::class
-  ],
-  autoMigrations = [
-    AutoMigration(from = 4, to = 5),
   ],
   version = 5,
   exportSchema = true
@@ -105,6 +101,15 @@ abstract class GymDatabase : RoomDatabase() {
         // Re-create the indices on the new table
         db.execSQL("CREATE INDEX index_sessionExercises_parentSessionId ON sessionExercises (parentSessionId)")
         db.execSQL("CREATE INDEX index_sessionExercises_parentExerciseId ON sessionExercises (parentExerciseId)")
+      }
+    }
+
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+      override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+          "ALTER TABLE sessionExercises " +
+            "ADD COLUMN exerciseOrder INTEGER NOT NULL DEFAULT -1"
+        )
       }
     }
   }
