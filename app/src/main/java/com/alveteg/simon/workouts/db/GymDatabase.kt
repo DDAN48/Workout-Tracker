@@ -9,6 +9,7 @@ import com.alveteg.simon.workouts.db.entities.Exercise
 import com.alveteg.simon.workouts.db.entities.GymSet
 import com.alveteg.simon.workouts.db.entities.Session
 import com.alveteg.simon.workouts.db.entities.SessionExercise
+import com.alveteg.simon.workouts.db.entities.WorkoutCalendar
 import com.alveteg.simon.workouts.utils.Converters
 
 
