@@ -118,11 +118,7 @@ fun SessionScreen(
   val sessionWrapper by viewModel.session.collectAsState()
   val exercises by viewModel.exercises.collectAsState()
   val muscleGroups by viewModel.muscleGroups.collectAsState()
-
-  var screenUnlocked by rememberSaveable(sessionWrapper.session.sessionId) { mutableStateOf(false) }
-  LaunchedEffect(sessionWrapper.session.sessionId) {
-    screenUnlocked = false
-  }
+  val screenUnlocked by viewModel.editing.collectAsState()
 
   var timerState by remember { mutableStateOf(TimerState(0L, false, 0L)) }
   var timerVisible by remember { mutableStateOf(false) }
@@ -230,7 +226,7 @@ fun SessionScreen(
         androidx.compose.material3.TextButton(onClick = {
           viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.ALL))
           saveRecurringDialog = false
-          screenUnlocked = false
+          viewModel.setEditing(false)
         }) { Text("Entire series") }
       },
       dismissButton = {
@@ -238,12 +234,12 @@ fun SessionScreen(
           androidx.compose.material3.TextButton(onClick = {
             viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.THIS_AND_FOLLOWING))
             saveRecurringDialog = false
-            screenUnlocked = false
+            viewModel.setEditing(false)
           }) { Text("This and following") }
           androidx.compose.material3.TextButton(onClick = {
             viewModel.onEvent(SessionEvent.SaveRecurringChanges(RecurrenceEditScope.THIS))
             saveRecurringDialog = false
-            screenUnlocked = false
+            viewModel.setEditing(false)
           }) { Text("Only this session") }
         }
       }
@@ -313,7 +309,7 @@ fun SessionScreen(
       title = "Set end time"
     ) { time ->
       viewModel.onEvent(SessionEvent.SetEndTime(time))
-      screenUnlocked = false
+      viewModel.setEditing(false)
     }
   }
 
@@ -449,7 +445,7 @@ fun SessionScreen(
             onTimerButtonClick = { timerVisible = !timerVisible },
             onToggleEdit = {
               if (!screenUnlocked) {
-                screenUnlocked = true
+                viewModel.setEditing(true)
               } else if (
                 sessionWrapper.session.recurrenceSeriesId != null ||
                 recurrenceFrequency != RecurrenceFrequency.NONE
@@ -458,7 +454,7 @@ fun SessionScreen(
               } else if (sessionWrapper.session.end == null) {
                 endTimeDialogState.show()
               } else {
-                screenUnlocked = !screenUnlocked
+                viewModel.setEditing(!screenUnlocked)
               }
             })
         }

@@ -41,6 +41,12 @@ class SessionViewModel @Inject constructor(
   )
   private val _exercises = MutableStateFlow<List<ExerciseWrapper>>(emptyList())
   val exercises = _exercises.asStateFlow()
+  private val _editing = MutableStateFlow(false)
+  val editing = _editing.asStateFlow()
+
+  fun setEditing(editing: Boolean) {
+    _editing.value = editing
+  }
 
   val muscleGroups = combine(
     exercises,
@@ -195,6 +201,7 @@ class SessionViewModel @Inject constructor(
 
       is SessionEvent.SaveRecurringChanges -> {
         viewModelScope.launch(Dispatchers.IO) {
+          repo.updateSession(_session.value)
           repo.syncRecurringPlan(_session.value.sessionId, event.scope)
         }
       }
@@ -228,6 +235,7 @@ class SessionViewModel @Inject constructor(
   }
 
   private fun updateSession(session: Session) {
+    _session.value = session
     viewModelScope.launch {
       repo.updateSession(session)
       withContext(Dispatchers.IO) {

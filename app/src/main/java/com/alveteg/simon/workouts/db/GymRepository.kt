@@ -282,8 +282,7 @@ class GymRepository(
       .getOrDefault(RecurrenceFrequency.NONE)
     val existingSeries = dao.getSessionList().filter { it.recurrenceSeriesId == seriesId }
     val pendingToReplace = existingSeries.filter {
-      it.sessionId != sessionId && it.end == null &&
-        (scope == RecurrenceEditScope.ALL || !it.start.isBefore(source.start))
+      it.sessionId != sessionId && it.end == null && !it.start.isBefore(source.start)
     }
     pendingToReplace.forEach { dao.removeSession(it) }
     if (configuredFrequency == RecurrenceFrequency.NONE) {
