@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -45,6 +46,11 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -59,6 +65,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,6 +86,7 @@ import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val sessionColors = listOf(
   0xFF6750A4,
@@ -101,6 +109,11 @@ fun HomeScreen(
 ) {
   val sessions by viewModel.sessions.collectAsState()
   val viewMode by viewModel.calendarViewMode.collectAsState()
+  val calendars by viewModel.workoutCalendars.collectAsState()
+  val visibleCalendarIds = calendars.filter { it.visible }.map { it.calendarId }.toSet()
+  val visibleSessions = sessions.filter { visibleCalendarIds.isEmpty() || it.session.calendarId in visibleCalendarIds }
+  val drawerState = rememberDrawerState(DrawerValue.Closed)
+  val scope = rememberCoroutineScope()
   var visibleMonth by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
   var focusedDateValue by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
   var editorDate by remember { mutableStateOf<LocalDate?>(null) }
@@ -146,10 +159,38 @@ fun HomeScreen(
     )
   }
 
+  ModalNavigationDrawer(
+    drawerState = drawerState,
+    drawerContent = {
+      ModalDrawerSheet {
+        Text("Workout Calendar", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(24.dp))
+        CalendarViewMode.entries.forEach { mode ->
+          NavigationDrawerItem(
+            label = { Text(mode.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }) },
+            selected = viewMode == mode,
+            onClick = { viewModel.onEvent(HomeEvent.SetCalendarView(mode)); scope.launch { drawerState.close() } }
+          )
+        }
+        Text("Workout calendars", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(16.dp))
+        calendars.forEach { calendar ->
+          NavigationDrawerItem(
+            label = { Text((if (calendar.visible) "✓ " else "□ ") + calendar.name) },
+            selected = calendar.visible,
+            onClick = { viewModel.onEvent(HomeEvent.ToggleCalendar(calendar)) }
+          )
+        }
+        NavigationDrawerItem(label = { Text("+ Add calendar") }, selected = false, onClick = {
+          viewModel.onEvent(HomeEvent.AddCalendar("Calendar ${calendars.size + 1}", sessionColors[calendars.size % sessionColors.size]))
+        })
+        NavigationDrawerItem(label = { Text("Settings") }, selected = false, onClick = { viewModel.onEvent(HomeEvent.OpenSettings) })
+      }
+    }
+  ) {
   Scaffold(
     topBar = {
       CalendarTopBar(
         month = month,
+        onMenu = { scope.launch { drawerState.open() } },
         viewMode = viewMode,
         onPrevious = {
           when (viewMode) {
@@ -159,6 +200,10 @@ fun HomeScreen(
               visibleMonth = YearMonth.from(it).toString()
             }
             CalendarViewMode.DAY -> focusedDate.minusDays(1).let {
+              focusedDateValue = it.toString()
+              visibleMonth = YearMonth.from(it).toString()
+            }
+            CalendarViewMode.AGENDA, CalendarViewMode.THREE_DAYS -> focusedDate.minusDays(3).let {
               focusedDateValue = it.toString()
               visibleMonth = YearMonth.from(it).toString()
             }
@@ -172,6 +217,10 @@ fun HomeScreen(
               visibleMonth = YearMonth.from(it).toString()
             }
             CalendarViewMode.DAY -> focusedDate.plusDays(1).let {
+              focusedDateValue = it.toString()
+              visibleMonth = YearMonth.from(it).toString()
+            }
+            CalendarViewMode.AGENDA, CalendarViewMode.THREE_DAYS -> focusedDate.plusDays(3).let {
               focusedDateValue = it.toString()
               visibleMonth = YearMonth.from(it).toString()
             }
@@ -194,7 +243,7 @@ fun HomeScreen(
     when (viewMode) {
       CalendarViewMode.MONTH -> MonthCalendar(
         month = month,
-        sessions = sessions,
+        sessions = visibleSessions,
         onDateClick = {
           focusedDateValue = it.toString()
           editorDate = it
@@ -205,7 +254,7 @@ fun HomeScreen(
       )
       CalendarViewMode.WEEK -> WeekCalendar(
         focusedDate = focusedDate,
-        sessions = sessions,
+        sessions = visibleSessions,
         onDateChange = {
           focusedDateValue = it.toString()
           visibleMonth = YearMonth.from(it).toString()
@@ -217,7 +266,7 @@ fun HomeScreen(
       )
       CalendarViewMode.DAY -> DayCalendar(
         date = focusedDate,
-        sessions = sessions,
+        sessions = visibleSessions,
         onDateChange = {
           focusedDateValue = it.toString()
           visibleMonth = YearMonth.from(it).toString()
@@ -227,13 +276,24 @@ fun HomeScreen(
         onSessionLongClick = { actionSession = it },
         modifier = Modifier.padding(innerPadding)
       )
+      CalendarViewMode.AGENDA, CalendarViewMode.THREE_DAYS -> WeekCalendar(
+        focusedDate = focusedDate,
+        sessions = visibleSessions,
+        onDateChange = { focusedDateValue = it.toString() },
+        onNewSession = { editorDate = it },
+        onSessionClick = { viewModel.onEvent(HomeEvent.SessionClicked(it)) },
+        onSessionLongClick = { actionSession = it },
+        modifier = Modifier.padding(innerPadding)
+      )
     }
+  }
   }
 }
 
 @Composable
 private fun CalendarTopBar(
   month: YearMonth,
+  onMenu: () -> Unit,
   viewMode: CalendarViewMode,
   onPrevious: () -> Unit,
   onNext: () -> Unit,
@@ -252,6 +312,7 @@ private fun CalendarTopBar(
           .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
+        IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, contentDescription = "Menu") }
         Text(
           text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")).replaceFirstChar { it.uppercase() },
           style = MaterialTheme.typography.headlineSmall,

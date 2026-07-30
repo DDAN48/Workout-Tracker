@@ -25,7 +25,9 @@ data class Session(
   val recurrenceFrequency: String = "NONE",
   @ColumnInfo(defaultValue = "1")
   val recurrenceInterval: Int = 1,
-  val recurrenceUntil: String? = null
+  val recurrenceUntil: String? = null,
+  @ColumnInfo(defaultValue = "1")
+  val calendarId: Long = 1L
 ) {
   companion object {
     const val DEFAULT_SESSION_COLOR: Long = 0xFF6750A4

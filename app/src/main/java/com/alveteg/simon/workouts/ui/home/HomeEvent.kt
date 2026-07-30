@@ -26,8 +26,10 @@ sealed class HomeEvent : Event {
     val scope: RecurrenceEditScope
   ) : HomeEvent()
   data class DeleteSession(val sessionId: Long, val scope: RecurrenceEditScope) : HomeEvent()
+  data class AddCalendar(val name: String, val colorArgb: Long) : HomeEvent()
+  data class ToggleCalendar(val calendar: com.alveteg.simon.workouts.db.entities.WorkoutCalendar) : HomeEvent()
 }
 
-enum class CalendarViewMode { DAY, WEEK, MONTH }
+enum class CalendarViewMode { AGENDA, DAY, THREE_DAYS, WEEK, MONTH }
 enum class RecurrenceFrequency { NONE, DAILY, WEEKLY, MONTHLY }
 enum class RecurrenceEditScope { THIS, THIS_AND_FOLLOWING, ALL }

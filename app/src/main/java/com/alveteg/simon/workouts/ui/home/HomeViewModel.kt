@@ -42,10 +42,19 @@ class HomeViewModel @Inject constructor(
   private val prefsRepo: UserPreferencesRepository,
   private val application: Application
 ) : ViewModel() {
+  init {
+    viewModelScope.launch(Dispatchers.IO) {
+      if (repo.getWorkoutCalendars().first().isEmpty()) {
+        repo.addWorkoutCalendar("Workouts", Session.DEFAULT_SESSION_COLOR)
+      }
+    }
+  }
 
   val calendarViewMode = prefsRepo.calendarViewMode
     .map { runCatching { CalendarViewMode.valueOf(it) }.getOrDefault(CalendarViewMode.MONTH) }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CalendarViewMode.MONTH)
+  val workoutCalendars = repo.getWorkoutCalendars()
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   val sessions = combine(
     repo.getAllSessionExercises(),
@@ -150,6 +159,12 @@ class HomeViewModel @Inject constructor(
 
       is HomeEvent.DeleteSession -> {
         viewModelScope.launch(Dispatchers.IO) { repo.deleteSession(event.sessionId, event.scope) }
+      }
+      is HomeEvent.AddCalendar -> viewModelScope.launch(Dispatchers.IO) {
+        repo.addWorkoutCalendar(event.name.trim(), event.colorArgb)
+      }
+      is HomeEvent.ToggleCalendar -> viewModelScope.launch(Dispatchers.IO) {
+        repo.toggleWorkoutCalendar(event.calendar)
       }
 
       else -> Unit

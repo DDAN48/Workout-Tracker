@@ -17,9 +17,10 @@ import com.alveteg.simon.workouts.utils.Converters
     Session::class,
     Exercise::class,
     SessionExercise::class,
-    GymSet::class
+    GymSet::class,
+    WorkoutCalendar::class
   ],
-  version = 7,
+  version = 8,
   exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -129,6 +130,13 @@ abstract class GymDatabase : RoomDatabase() {
         db.execSQL("ALTER TABLE sessions ADD COLUMN recurrenceFrequency TEXT NOT NULL DEFAULT 'NONE'")
         db.execSQL("ALTER TABLE sessions ADD COLUMN recurrenceInterval INTEGER NOT NULL DEFAULT 1")
         db.execSQL("ALTER TABLE sessions ADD COLUMN recurrenceUntil TEXT DEFAULT NULL")
+      }
+    }
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+      override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS workoutCalendars (calendarId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, colorArgb INTEGER NOT NULL, visible INTEGER NOT NULL)")
+        db.execSQL("INSERT OR IGNORE INTO workoutCalendars(calendarId,name,colorArgb,visible) VALUES(1,'Workouts',${Session.DEFAULT_SESSION_COLOR},1)")
+        db.execSQL("ALTER TABLE sessions ADD COLUMN calendarId INTEGER NOT NULL DEFAULT 1")
       }
     }
   }

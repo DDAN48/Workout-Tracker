@@ -7,6 +7,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GymDAO {
+  @Query("SELECT * FROM workoutCalendars ORDER BY calendarId")
+  fun getWorkoutCalendars(): Flow<List<WorkoutCalendar>>
+
+  @Insert
+  suspend fun insertWorkoutCalendar(calendar: WorkoutCalendar): Long
+
+  @Update
+  suspend fun updateWorkoutCalendar(calendar: WorkoutCalendar)
 
   @Query("SELECT * FROM sessions WHERE sessionId = :sessionId")
   fun getSessionById(sessionId: Long): Session
@@ -113,4 +121,3 @@ interface GymDAO {
   @Query("DELETE FROM exercises")
   suspend fun clearExercises()
 }
-

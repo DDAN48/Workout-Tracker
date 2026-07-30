@@ -49,6 +49,11 @@ class GymRepository(
   fun getSetById(setId: Long) = dao.getSetById(setId)
 
   fun getAllSessions() = dao.getAllSessions()
+  fun getWorkoutCalendars() = dao.getWorkoutCalendars()
+  suspend fun addWorkoutCalendar(name: String, color: Long) =
+    dao.insertWorkoutCalendar(WorkoutCalendar(name = name, colorArgb = color))
+  suspend fun toggleWorkoutCalendar(calendar: WorkoutCalendar) =
+    dao.updateWorkoutCalendar(calendar.copy(visible = !calendar.visible))
 
   fun getAllSets() = dao.getAllSets()
   fun getAllExercises() = dao.getAllExercises()
