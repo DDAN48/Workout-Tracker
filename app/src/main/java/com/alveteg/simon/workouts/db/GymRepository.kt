@@ -257,8 +257,11 @@ class GymRepository(
     dao.insertSet(GymSet(parentSessionExerciseId = sessionExercise.sessionExerciseId))
 
   suspend fun syncRecurringPlan(sessionId: Long, scope: RecurrenceEditScope) = database.withTransaction {
-    if (scope == RecurrenceEditScope.THIS) return@withTransaction
     var source = dao.getSessionById(sessionId)
+    if (
+      scope == RecurrenceEditScope.THIS &&
+      (source.recurrenceSeriesId != null || source.recurrenceFrequency == RecurrenceFrequency.NONE.name)
+    ) return@withTransaction
     var seriesId = source.recurrenceSeriesId
     if (seriesId == null) {
       val frequency = runCatching { RecurrenceFrequency.valueOf(source.recurrenceFrequency) }

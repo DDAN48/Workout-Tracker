@@ -229,7 +229,6 @@ fun HomeScreen(
             modifier = Modifier
               .fillMaxWidth()
               .clip(RoundedCornerShape(28.dp))
-              .background(if (selectedCalendarId == calendar.calendarId) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
               .combinedClickable(
                 onClick = {
                   selectedCalendarId = calendar.calendarId
