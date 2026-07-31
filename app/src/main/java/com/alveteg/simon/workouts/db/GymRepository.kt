@@ -54,6 +54,10 @@ class GymRepository(
     dao.insertWorkoutCalendar(WorkoutCalendar(name = name, colorArgb = color))
   suspend fun toggleWorkoutCalendar(calendar: WorkoutCalendar) =
     dao.updateWorkoutCalendar(calendar.copy(visible = !calendar.visible))
+  suspend fun renameWorkoutCalendar(calendar: WorkoutCalendar, name: String) {
+    val normalizedName = name.trim()
+    if (normalizedName.isNotEmpty()) dao.updateWorkoutCalendar(calendar.copy(name = normalizedName))
+  }
   suspend fun deleteWorkoutCalendar(calendar: WorkoutCalendar) = database.withTransaction {
     val fallbackId = dao.getWorkoutCalendarList()
       .firstOrNull { it.calendarId != calendar.calendarId }

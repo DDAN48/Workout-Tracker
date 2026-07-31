@@ -161,6 +161,9 @@ class HomeViewModel @Inject constructor(
       is HomeEvent.DeleteCalendar -> viewModelScope.launch(Dispatchers.IO) {
         repo.deleteWorkoutCalendar(event.calendar)
       }
+      is HomeEvent.RenameCalendar -> viewModelScope.launch(Dispatchers.IO) {
+        repo.renameWorkoutCalendar(event.calendar, event.name)
+      }
 
       else -> Unit
     }

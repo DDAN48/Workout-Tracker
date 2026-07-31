@@ -10,6 +10,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +44,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewDay
 import androidx.compose.material.icons.filled.ViewWeek
@@ -80,6 +84,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -131,6 +138,8 @@ fun HomeScreen(
   var actionSession by remember { mutableStateOf<SessionWrapper?>(null) }
   var selectedCalendarId by rememberSaveable { mutableStateOf(1L) }
   var calendarToDelete by remember { mutableStateOf<WorkoutCalendar?>(null) }
+  var editingCalendarId by rememberSaveable { mutableStateOf<Long?>(null) }
+  var calendarNameDraft by rememberSaveable { mutableStateOf("") }
   val month = YearMonth.parse(visibleMonth)
   val focusedDate = LocalDate.parse(focusedDateValue)
 
@@ -212,13 +221,21 @@ fun HomeScreen(
         HorizontalDivider()
         Text("Workout calendars", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(16.dp))
         calendars.forEach { calendar ->
+          val focusRequester = remember(calendar.calendarId) { FocusRequester() }
+          LaunchedEffect(editingCalendarId, calendar.calendarId) {
+            if (editingCalendarId == calendar.calendarId) focusRequester.requestFocus()
+          }
           Row(
             modifier = Modifier
               .fillMaxWidth()
               .clip(RoundedCornerShape(28.dp))
               .background(if (selectedCalendarId == calendar.calendarId) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
               .combinedClickable(
-                onClick = { selectedCalendarId = calendar.calendarId },
+                onClick = {
+                  selectedCalendarId = calendar.calendarId
+                  editingCalendarId = calendar.calendarId
+                  calendarNameDraft = calendar.name
+                },
                 onLongClick = { calendarToDelete = calendar }
               )
               .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -232,7 +249,31 @@ fun HomeScreen(
                   .clickable { viewModel.onEvent(HomeEvent.ToggleCalendar(calendar)) },
                 contentAlignment = Alignment.Center
               ) { if (calendar.visible) Text("✓", color = Color.White) }
-            Text(calendar.name, modifier = Modifier.weight(1f).padding(start = 16.dp))
+            if (editingCalendarId == calendar.calendarId) {
+              BasicTextField(
+                value = calendarNameDraft,
+                onValueChange = { calendarNameDraft = it },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                  viewModel.onEvent(HomeEvent.RenameCalendar(calendar, calendarNameDraft))
+                  editingCalendarId = null
+                }),
+                modifier = Modifier
+                  .weight(1f)
+                  .padding(start = 16.dp)
+                  .focusRequester(focusRequester)
+              )
+              IconButton(onClick = {
+                viewModel.onEvent(HomeEvent.RenameCalendar(calendar, calendarNameDraft))
+                editingCalendarId = null
+              }) {
+                Icon(Icons.Default.Check, contentDescription = "Save calendar name")
+              }
+            } else {
+              Text(calendar.name, modifier = Modifier.weight(1f).padding(start = 16.dp))
+            }
           }
         }
         NavigationDrawerItem(label = { Text("+ Add calendar") }, selected = false, onClick = {

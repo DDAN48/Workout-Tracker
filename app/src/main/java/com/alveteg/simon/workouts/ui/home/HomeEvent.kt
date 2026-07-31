@@ -30,6 +30,10 @@ sealed class HomeEvent : Event {
   data class AddCalendar(val name: String, val colorArgb: Long) : HomeEvent()
   data class ToggleCalendar(val calendar: com.alveteg.simon.workouts.db.entities.WorkoutCalendar) : HomeEvent()
   data class DeleteCalendar(val calendar: com.alveteg.simon.workouts.db.entities.WorkoutCalendar) : HomeEvent()
+  data class RenameCalendar(
+    val calendar: com.alveteg.simon.workouts.db.entities.WorkoutCalendar,
+    val name: String
+  ) : HomeEvent()
 }
 
 enum class CalendarViewMode { AGENDA, DAY, THREE_DAYS, WEEK, MONTH }
